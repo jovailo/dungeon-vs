@@ -216,7 +216,8 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
 // ================================================================
 // WebSocket
 // ================================================================
-const WS_URL=`ws://${location.host}`;
+// 本番(https)はwss://、ローカル(http)はws:// を自動で選ぶ
+const WS_URL=`${location.protocol==='https:'?'wss':'ws'}://${location.host}`;
 let socket=null,myRole=null,myRoomId=null;
 
 function connectWS(onReady){

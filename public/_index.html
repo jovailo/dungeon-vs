@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DUNGEON VS</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#08080f;display:flex;justify-content:center;padding:12px;font-family:'Courier New',monospace;color:#ddd;min-height:100vh}
+#gw{width:100%;max-width:900px;background:#0d0d1a;border-radius:12px;padding:14px;border:1px solid #1e1e3a;position:relative}
+/* ロビー */
+#lobby{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:16px}
+#lobby h1{font-size:22px;color:#f5d04a;letter-spacing:4px}
+#lobby p{font-size:12px;color:#666;text-align:center;line-height:2}
+.lobbyBox{background:#0a0a18;border:1px solid #2a2a4a;border-radius:8px;padding:16px;width:320px;display:flex;flex-direction:column;gap:8px}
+.lobbyBox h2{font-size:13px;letter-spacing:2px;margin-bottom:2px}
+.lobbyBox.hero h2{color:#6ee7f7}.lobbyBox.demon h2{color:#d080f0}
+.lbtn{border-radius:5px;padding:9px;font-size:13px;cursor:pointer;font-family:'Courier New',monospace;letter-spacing:1px;text-align:center;border:1px solid}
+.lbtn.blue{background:#0e1e2e;border-color:#3a6a9a;color:#6ee7f7}.lbtn.blue:hover{background:#182e42}
+.lbtn.purple{background:#1a0a2e;border-color:#7a3aaa;color:#d080f0}.lbtn.purple:hover{background:#261040}
+#roomInput{background:#0a0a14;border:1px solid #3a3a5a;border-radius:5px;padding:8px;font-size:14px;color:#ddd;font-family:'Courier New',monospace;letter-spacing:3px;text-align:center;width:100%}
+#lobbyMsg{font-size:11px;color:#e07070;text-align:center;min-height:16px}
+#waitingMsg{font-size:12px;color:#f5d04a;text-align:center;display:none}
+#roomDisplay{font-size:22px;color:#f5d04a;letter-spacing:6px;text-align:center;padding:8px;background:#0a0a14;border-radius:5px;border:1px solid #3a3a2a;display:none}
+#copyHint{font-size:10px;color:#666;text-align:center;display:none}
+/* ゲームエリア */
+#gameArea{display:none}
+#topbar{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;margin-bottom:8px}
+.pstat{border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px}
+#p1stat{background:#0a1828;border:2px solid #1a4a7a}
+#p2stat{background:#1a0a1a;border:2px solid #6a1a7a}
+#p1stat.active{border-color:#6ee7f7;background:#0d2238}
+#p2stat.active{border-color:#d080f0;background:#1e0a2a}
+.youbadge{font-size:9px;padding:1px 5px;border-radius:3px;background:#f5d04a20;color:#f5d04a;margin-left:4px}
+.pname{font-size:13px;font-weight:500;letter-spacing:1px;display:flex;align-items:center;gap:4px}
+#p1stat .pname{color:#6ee7f7}#p2stat .pname{color:#d080f0}
+.tbadge{font-size:10px;padding:1px 7px;border-radius:3px;display:none}
+#p1stat.active .tbadge{display:inline;background:#6ee7f720;color:#6ee7f7}
+#p2stat.active .tbadge{display:inline;background:#d080f020;color:#d080f0}
+.prow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ps{font-size:11px;display:flex;align-items:center;gap:3px}
+.pl{color:#444}.pv{font-weight:500;min-width:16px}
+#p1stat .pv{color:#6ee7f7}#p2stat .pv{color:#d080f0}
+.hpbar{width:70px;height:6px;background:#1a1a2a;border-radius:3px;overflow:hidden}
+.hpfill{height:100%;border-radius:3px;transition:width .15s}
+#hpf1{background:#3a9fd0}
+#ptRow{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px}
+.pip{width:12px;height:12px;border-radius:2px;border:1px solid #5a2a8a;background:#1a0a2a}
+.pip.used{background:#9040d0;border-color:#d080f0}
+.skillrow{display:flex;gap:3px;flex-wrap:wrap}
+.sk{height:20px;padding:0 5px;border-radius:3px;border:1px solid #333;display:flex;align-items:center;font-size:10px;cursor:pointer;gap:2px;white-space:nowrap}
+.sk.p1sk{border-color:#2a5a8a;color:#6ee7f7;background:#0e1e2e}
+.sk.dsk{border-color:#6a2a8a;color:#d080f0;background:#1a0a2e}
+.sk.ready{border-color:#f5d04a;color:#f5d04a}
+.sk.cooldown{opacity:.35;cursor:default}
+.sk .cdnum{font-size:8px;color:#888;margin-left:2px}
+#vsbox{display:flex;align-items:center;justify-content:center;padding:0 4px;font-size:12px;color:#333}
+#main{display:flex;gap:10px;align-items:flex-start}
+canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
+#side{flex:1;display:flex;flex-direction:column;gap:6px;min-width:155px}
+#fl{background:#141424;border-radius:5px;padding:5px 8px;font-size:11px;color:#666;text-align:center}
+#turnbar{border-radius:5px;padding:6px 8px;font-size:11px;font-weight:500;text-align:center;transition:background .2s}
+#turnbar.t1{background:#0d2034;color:#6ee7f7;border:1px solid #6ee7f730}
+#turnbar.t2{background:#1a0d2e;color:#d080f0;border:1px solid #d080f030}
+#demonPanel{background:#0a0a18;border:1px solid #2a1a3a;border-radius:6px;padding:8px;display:none;flex-direction:column;gap:4px}
+#demonPanel.show{display:flex}
+#demonPanelTitle{display:flex;justify-content:space-between;font-size:10px;color:#d080f0;letter-spacing:1px}
+#ptLabel2{color:#9040d0}
+#tabRow{display:flex;gap:3px;margin-bottom:2px}
+.tab{flex:1;padding:3px;border-radius:3px;border:1px solid #2a1a3a;font-size:10px;text-align:center;cursor:pointer;color:#777}
+.tab.on{border-color:#d080f0;color:#d080f0;background:#1a0a2a}
+#cardGrid{display:flex;flex-direction:column;gap:3px}
+.card{display:flex;align-items:center;gap:5px;padding:4px 6px;border-radius:4px;border:1px solid #2a1a3a;cursor:pointer;background:#0d0d1e;transition:border .1s}
+.card:hover{border-color:#d080f0}.card.sel{border-color:#f5d04a;background:#1c1a08}
+.card.nopt{opacity:.28;cursor:not-allowed;pointer-events:none}
+.card .cico{font-size:13px;width:18px;text-align:center}
+.card .cinfo{flex:1}.card .cname{font-size:10px;color:#ccc}.card .cdesc{font-size:9px;color:#555}
+.card .ccost{display:flex;gap:2px}.cpip{width:7px;height:7px;border-radius:1px;background:#7030b0}
+#deployInfo{font-size:10px;color:#555;text-align:center;line-height:1.5}
+#deployBtn{width:100%;background:#1e0a30;border:1px solid #7030b0;border-radius:4px;padding:5px;font-size:11px;color:#d080f0;cursor:pointer;font-family:'Courier New',monospace;letter-spacing:1px;text-align:center}
+#deployBtn:hover{background:#2a1040}#deployBtn:disabled{opacity:.3;cursor:default}
+/* 魔王スキル */
+#demonSkillRow{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px}
+#waitTurn{background:#0a0a18;border:1px solid #2a2a3a;border-radius:6px;padding:10px;font-size:11px;color:#555;text-align:center;display:none;line-height:2}
+#waitTurn.show{display:block}
+#log{background:#0a0a14;border-radius:5px;padding:7px;font-size:10px;height:80px;overflow-y:auto;display:flex;flex-direction:column-reverse}
+.lm{color:#555;line-height:1.7}.lm.g{color:#5dbb8a}.lm.r{color:#e07070}.lm.y{color:#f5d04a}.lm.b{color:#6ab0e0}.lm.p{color:#c08af0}.lm.o{color:#f0a060}
+#chatArea{background:#0a0a14;border-radius:5px;padding:6px}
+#chatLog{font-size:10px;height:44px;overflow-y:auto;display:flex;flex-direction:column-reverse;margin-bottom:4px}
+.cm{line-height:1.7;font-size:10px}.cm.hero{color:#6ee7f7}.cm.demon{color:#d080f0}
+#chatRow{display:flex;gap:4px}
+#chatInput{flex:1;background:#0d0d18;border:1px solid #2a2a3a;border-radius:4px;padding:4px 6px;font-size:11px;color:#ddd;font-family:'Courier New',monospace}
+#chatSend{background:#141424;border:1px solid #2a2a3a;border-radius:4px;padding:4px 8px;font-size:10px;color:#888;cursor:pointer;font-family:'Courier New',monospace}
+#chatSend:hover{background:#1e1e2e}
+#hint{background:#0a0a14;border-radius:5px;padding:7px;font-size:10px;color:#444;line-height:2}
+.c1{color:#6ee7f7}.c2{color:#d080f0}
+#dpad-area{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:wrap}
+#dpad{display:grid;grid-template-columns:repeat(3,30px);grid-template-rows:repeat(2,30px);gap:2px}
+.db{width:30px;height:30px;background:#141424;border:1px solid #2a2a3a;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;color:#888}
+.db:hover{background:#1e1e2e}.db:active{background:#282838}.db.x{background:transparent;border:none;cursor:default}
+.db.t1a{border-color:#6ee7f750;color:#6ee7f7}
+#skip-btn{background:#141424;border:1px solid #2a2a3a;border-radius:4px;padding:4px 7px;font-size:10px;color:#666;cursor:pointer;font-family:'Courier New',monospace}
+#skip-btn:hover{background:#1e1e2e}
+/* リザルト */
+#ov{display:none;position:absolute;inset:0;background:rgba(0,0,0,.92);border-radius:12px;align-items:center;justify-content:center;flex-direction:column;gap:8px;z-index:20}
+#ov.s{display:flex}
+#ot{font-size:22px;letter-spacing:3px}
+#op{font-size:11px;color:#666;text-align:center;line-height:2}
+#resultTable{border-collapse:collapse;font-size:11px;margin-top:4px}
+#resultTable td{padding:3px 12px;border:1px solid #2a2a3a}
+#resultTable td:first-child{color:#888}
+#resultTable td:last-child{color:#f5d04a;text-align:right}
+#rb{background:#f5d04a;color:#0d0d0d;border:none;padding:9px 24px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500;margin-top:4px}
+#rb:hover{background:#fde068}
+</style>
+</head>
+<body>
+<div id="gw">
+<!-- ロビー -->
+<div id="lobby">
+  <h1>⚔ DUNGEON VS</h1>
+  <p>同じWiFi内でリアルタイム対戦</p>
+  <div class="lobbyBox hero">
+    <h2>⚔ 勇者としてプレイ</h2>
+    <p style="font-size:10px;color:#555">ルームを作成してIDを相手に伝える</p>
+    <button class="lbtn blue" id="createBtn">ルームを作成する</button>
+    <div id="roomDisplay"></div>
+    <div id="copyHint">↑ このIDを魔王役に伝えてください</div>
+    <div id="waitingMsg">👿 魔王の参加を待っています...</div>
+  </div>
+  <div class="lobbyBox demon">
+    <h2>👿 魔王としてプレイ</h2>
+    <p style="font-size:10px;color:#555">勇者役から聞いたIDを入力する</p>
+    <input id="roomInput" type="text" placeholder="ルームID（例: ABC123）" maxlength="6">
+    <button class="lbtn purple" id="joinBtn">ルームに参加する</button>
+  </div>
+  <div id="lobbyMsg"></div>
+</div>
+<!-- ゲームエリア -->
+<div id="gameArea">
+  <div id="topbar">
+    <div class="pstat" id="p1stat">
+      <div class="pname">⚔ 勇者<span class="tbadge">YOUR TURN</span><span class="youbadge" id="you1" style="display:none">YOU</span></div>
+      <div class="prow">
+        <div class="ps"><span class="pl">HP</span><div class="hpbar"><div class="hpfill" id="hpf1"></div></div><span class="pv" id="hv1"></span></div>
+        <div class="ps"><span class="pl">ATK</span><span class="pv" id="av1"></span></div>
+        <div class="ps"><span class="pl">DEF</span><span class="pv" id="dv1"></span></div>
+        <div class="ps"><span class="pl">LV</span><span class="pv" id="lv1"></span></div>
+        <div class="ps"><span class="pl">💰</span><span class="pv" id="gv1"></span></div>
+        <div class="ps"><span class="pl">🍙</span><div style="width:50px;height:5px;background:#1a2a1a;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle"><div id="hungerFill" style="height:100%;background:#6ab040;border-radius:3px;transition:width .15s"></div></div><span class="pv" id="hungerVal"></span></div>
+      </div>
+      <div class="skillrow" id="sk1row"></div>
+    </div>
+    <div id="vsbox">VS</div>
+    <div class="pstat" id="p2stat">
+      <div class="pname">👿 魔王<span class="tbadge">YOUR TURN</span><span class="youbadge" id="you2" style="display:none">YOU</span></div>
+      <div class="prow">
+        <div class="ps"><span class="pl">PT</span><span class="pv" id="ptVal">—</span></div>
+        <div class="ps"><span class="pl">B</span><span class="pv" id="fl2">1</span><span class="pl">F</span></div>
+        <div class="ps"><span class="pl">ターン</span><span class="pv" id="turnCount">0</span></div>
+      </div>
+      <div id="ptRow"></div>
+      <div id="demonSkillRow"></div>
+    </div>
+  </div>
+  <div id="main">
+    <canvas id="c" width="420" height="300"></canvas>
+    <div id="side">
+      <div id="fl">B1F</div>
+      <div id="turnbar" class="t1">⚔ 勇者のターン</div>
+      <div id="demonPanel">
+        <div id="demonPanelTitle"><span>👿 配置</span><span id="ptLabel2">残0pt</span></div>
+        <div id="tabRow">
+          <div class="tab on" id="tabMob"  onclick="switchTab('mob')">モンスター</div>
+          <div class="tab"    id="tabTrap" onclick="switchTab('trap')">罠</div>
+        </div>
+        <div id="cardGrid"></div>
+        <div id="deployInfo">カードを選んでEnter</div>
+        <button id="deployBtn" disabled>🎲 召喚（Enter）</button>
+      </div>
+      <div id="waitTurn">相手のターンです...<br><span style="font-size:9px;color:#333">相手が行動すると自動で切り替わります</span></div>
+      <div id="log"></div>
+      <div id="chatArea">
+        <div id="chatLog"></div>
+        <div id="chatRow">
+          <input id="chatInput" type="text" placeholder="チャット..." maxlength="40">
+          <button id="chatSend">送信</button>
+        </div>
+      </div>
+      <div id="hint">
+        <span class="c1">勇者: WASD/矢印 Q/E/R=スキル</span><br>
+        <span class="c2">魔王: 数字+Enter召喚 / Z/X/C/V=スキル</span><br>
+        <span style="color:#5dbb8a">💧 満腹度30以上でHP自然回復</span><br>
+        <span style="color:#e07070">🫙 満腹度0でHP減少・食料を探せ</span>
+      </div>
+      <div id="dpad-area">
+        <div id="dpad">
+          <div class="db x"></div><div class="db" id="bu">▲</div><div class="db x"></div>
+          <div class="db" id="bl">◀</div><div class="db" id="bd">▼</div><div class="db" id="br">▶</div>
+        </div>
+        <button id="skip-btn">待機</button>
+      </div>
+    </div>
+  </div>
+  <div id="ov">
+    <div id="ot"></div>
+    <div id="op"></div>
+    <table id="resultTable"></table>
+    <button id="rb">ロビーへ戻る</button>
+  </div>
+</div>
+</div>
+<script>
+// ================================================================
+// WebSocket
+// ================================================================
+const WS_URL=`ws://${location.host}`;
+let socket=null,myRole=null,myRoomId=null;
+
+function connectWS(onReady){
+  socket=new WebSocket(WS_URL);
+  socket.onopen=()=>{console.log('WS接続OK');if(onReady)onReady();};
+  socket.onmessage=(e)=>onServerMessage(JSON.parse(e.data));
+  socket.onclose=()=>setLobbyMsg('サーバーとの接続が切れました');
+  socket.onerror=()=>setLobbyMsg('接続エラー。サーバーが起動しているか確認してください');
+}
+function sendWS(msg){if(socket&&socket.readyState===1)socket.send(JSON.stringify(msg));}
+function setLobbyMsg(t){document.getElementById('lobbyMsg').textContent=t;}
+
+function onServerMessage(msg){
+  if(msg.type==='room_created'){
+    myRoomId=msg.roomId;
+    document.getElementById('roomDisplay').textContent=msg.roomId;
+    document.getElementById('roomDisplay').style.display='block';
+    document.getElementById('copyHint').style.display='block';
+    document.getElementById('waitingMsg').style.display='block';
+    setLobbyMsg('');
+  }else if(msg.type==='game_start'){
+    startGame();
+  }else if(msg.type==='state_sync'){
+    applyStateSync(msg.state);
+  }else if(msg.type==='demon_action'){
+    applyStateSync(msg.state);
+    if(turn==='hero')log('⚔ 勇者のターン','b');
+  }else if(msg.type==='chat'){
+    addChat(msg.role,msg.text);
+  }else if(msg.type==='error'){
+    setLobbyMsg(msg.message);
+  }else if(msg.type==='opponent_disconnected'){
+    showOverlay('通信切断','相手が切断しました','#e07070');
+  }
+}
+
+document.getElementById('createBtn').onclick=()=>{
+  myRole='hero';setLobbyMsg('接続中...');
+  connectWS(()=>sendWS({type:'create_room'}));
+};
+document.getElementById('joinBtn').onclick=()=>{
+  const id=document.getElementById('roomInput').value.trim().toUpperCase();
+  if(id.length<4){setLobbyMsg('IDを入力してください');return;}
+  myRole='demon';setLobbyMsg('接続中...');
+  connectWS(()=>sendWS({type:'join_room',roomId:id}));
+};
+
+// ================================================================
+// 定数
+// ================================================================
+const CV=document.getElementById('c'),ctx=CV.getContext('2d');
+const CW=420,CH=300,TS=20,COLS=21,ROWS=15;
+const MAX_FLOOR=5;
+
+function demonPtForFloor(f){return Math.min(6+(f-1)*2,20);}
+
+// フロアごとの出現モンスター（魔王が召喚できる種類も同じテーブル）
+const FLOOR_ENEMY_TABLE={
+  1:['slime'],
+  2:['slime','goblin'],
+  3:['goblin','skeleton'],
+  4:['skeleton','troll'],
+  5:['troll','dragon'],
+};
+
+// 勇者スキル（回復廃止・CD長め）
+const HERO_SKILLS=[
+  {id:'slash', name:'斬撃', icon:'⚔', desc:'周囲8マス攻撃', cd:0,baseCd:5,type:'aoe'},
+  {id:'barrier',name:'障壁', icon:'🔮', desc:'2T無敵',        cd:0,baseCd:7,type:'barrier'},
+  {id:'dash',  name:'突進', icon:'💨', desc:'2マス前進+強打',  cd:0,baseCd:5,type:'dash'},
+];
+
+// 魔王スキル（ポイント消費なし・CD長め）
+const DEMON_SKILLS=[
+  {id:'quake',  name:'地震',   icon:'🌋', desc:'全敵のATK+2（3T）',    cd:0,baseCd:8, type:'quake'},
+  {id:'curse',  name:'呪い',   icon:'💜', desc:'勇者のATK-2（3T）',    cd:0,baseCd:9, type:'curse'},
+  {id:'revive', name:'復活',   icon:'💀', desc:'倒された敵を1体復活',   cd:0,baseCd:10,type:'revive'},
+  {id:'veil',   name:'隠蔽',   icon:'🌫', desc:'罠を全て未発動に戻す',  cd:0,baseCd:12,type:'veil'},
+];
+
+// モンスターカード
+const MON_CARDS=[
+  {id:'slime',   name:'スライム', ico:'🟢',stype:'slime',   hp:6, atk:2,def:0,cost:1,exp:2, gold:1, desc:'安価・大量配置'},
+  {id:'goblin',  name:'ゴブリン', ico:'👺',stype:'goblin',  hp:12,atk:4,def:1,cost:3,exp:4, gold:2, desc:'バランス型'},
+  {id:'skeleton',name:'スケルトン',ico:'💀',stype:'skeleton',hp:18,atk:5,def:2,cost:5,exp:6, gold:3, desc:'硬くて強い'},
+  {id:'troll',   name:'トロル',   ico:'👹',stype:'troll',   hp:30,atk:7,def:3,cost:7,exp:10,gold:5, desc:'重量級タンク'},
+  {id:'dragon',  name:'ドラゴン', ico:'🐉',stype:'dragon',  hp:50,atk:10,def:4,cost:9,exp:20,gold:10,desc:'最強・制圧'},
+];
+
+// 罠カード（種類を拡張）
+const TRAP_CARDS=[
+  {id:'dmgtrap', name:'ダメージ罠',ico:'⚠', trapType:'dmg',  cost:2,desc:'踏んだらHP-10'},
+  {id:'warptrap',name:'ワープ罠', ico:'🌀', trapType:'warp', cost:2,desc:'踏んだら転送'},
+  {id:'weaktrap',name:'弱体罠',   ico:'🩸', trapType:'weak', cost:3,desc:'ATK-2・3ターン'},
+  {id:'slowtrap',name:'足止め罠', ico:'🕸', trapType:'slow', cost:2,desc:'次ターンスキップ'},
+  {id:'mimic',   name:'ミミック', ico:'📦', trapType:'mimic',cost:4,desc:'アイテムに擬態・触れると攻撃'},
+];
+
+const PAL={
+  bg:'#0d0d1a',wall:'#252038',wallL:'#38304e',floor:'#13121e',floorL:'#1c1a2c',
+  hero:'#6ee7f7',heroD:'#2a8fa0',
+  slime:'#50c050',slimeD:'#287028',goblin:'#7ec86b',goblinD:'#3a6e2f',
+  skeleton:'#c8c8b4',skeletonD:'#888876',troll:'#8060a0',trollD:'#402060',
+  dragon:'#e060e0',dragonD:'#803080',
+  potion:'#e05599',weapon:'#f5d04a',shield:'#7abcf0',
+  stairs:'#8ae08a',stairsD:'#3a8a3a',
+  fog:'#08080f',fogV:'rgba(0,0,0,0.65)'
+};
+
+let gmap,hero,enemies,items,traps,fl,done,staX,staY,turn,demonPtLeft,selectedCard,activeTab,turnCount;
+let demonSkills,deadEnemies; // 魔王スキル状態、倒された敵リスト
+
+function rng(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function dist(a,b){return Math.abs(a.x-b.x)+Math.abs(a.y-b.y);}
+
+// ================================================================
+// ゲーム開始
+// ================================================================
+function startGame(){
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('gameArea').style.display='block';
+  document.getElementById(myRole==='hero'?'you1':'you2').style.display='inline';
+  if(myRole==='hero'){initGame();}
+}
+
+function initGame(){
+  fl=1;done=false;turn='hero';turnCount=0;
+  demonPtLeft=demonPtForFloor(1);selectedCard=-1;activeTab='mob';
+  demonSkills=DEMON_SKILLS.map(s=>({...s}));
+  deadEnemies=[];
+  hero={hp:25,maxHp:25,atk:4,def:1,lv:1,exp:0,gold:0,barrier:0,
+        atk_debuff:0,skip:0,hunger:100,maxHunger:100,
+        skills:HERO_SKILLS.map(s=>({...s}))};
+  document.getElementById('log').innerHTML='';
+  loadFloor();
+  render();
+  log('ゲーム開始！B'+MAX_FLOOR+'Fのボスを倒せ！','b');
+  setTimeout(()=>syncState(),500);
+}
+
+function loadFloor(){
+  const{m,rooms}=genMap();gmap=m;
+  const used=[];
+  hero.x=~~(rooms[0].x+rooms[0].w/2);hero.y=~~(rooms[0].y+rooms[0].h/2);
+  hero.rev=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  used.push({x:hero.x,y:hero.y});
+  const lr=rooms[rooms.length-1];
+  staX=~~(lr.x+lr.w/2);staY=~~(lr.y+lr.h/2);used.push({x:staX,y:staY});
+  enemies=[];deadEnemies=[];
+  // フロアごとの出現テーブルから初期敵を配置
+  const table=FLOOR_ENEMY_TABLE[Math.min(fl,5)];
+  const initCount=Math.max(1,~~(fl/2));
+  for(let i=0;i<initCount;i++){
+    const pos=randFloor(m,used);if(!pos)break;used.push(pos);
+    const stype=table[rng(0,table.length-1)];
+    const base=MON_CARDS.find(c=>c.stype===stype)||MON_CARDS[0];
+    const hp=base.hp+fl*2;
+    enemies.push({x:pos.x,y:pos.y,stype,name:base.name,hp,maxHp:hp,atk:base.atk+fl,def:base.def,exp:base.exp,gold:base.gold});
+  }
+  // B5F：ボス配置
+  if(fl===MAX_FLOOR){
+    const bpos=randFloor(m,used);
+    if(bpos){
+      used.push(bpos);
+      const bossHp=80+fl*5;
+      enemies.push({x:bpos.x,y:bpos.y,stype:'dragon',name:'魔王の使徒',hp:bossHp,maxHp:bossHp,atk:14,def:5,exp:50,gold:30,isBoss:true});
+    }
+  }
+  // アイテム（食料追加）
+  items=[];
+  const it=[
+    {type:'potion',eff:'heal',val:12+fl*2},
+    {type:'weapon',eff:'atk',val:1},
+    {type:'shield',eff:'def',val:1},
+    {type:'food',  eff:'food',val:30, name:'食料'},
+    {type:'food',  eff:'food',val:50, name:'大きなおにぎり'},
+  ];
+  for(let i=0;i<3+~~(fl/2);i++){
+    const pos=randFloor(m,used);if(!pos)break;used.push(pos);
+    // 食料は約30%の確率で出現
+    const pool=rng(0,9)<3?[it[3],it[4]][rng(0,1)]:it[rng(0,2)];
+    items.push({...pos,...pool});
+  }
+  // 初期罠
+  traps=[];
+  for(let i=0;i<Math.max(0,fl-1);i++){
+    const pos=randFloor(m,used);if(!pos)break;used.push(pos);
+    traps.push({...pos,trapType:'dmg',triggered:false});
+  }
+  if(fl===MAX_FLOOR)log('⚠ ボスが現れた！魔王の使徒を倒せ！','r');
+}
+
+// ================================================================
+// マップ生成
+// ================================================================
+function genMap(){
+  const m=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  const rooms=[];
+  for(let i=0;i<10;i++){
+    const rw=rng(3,6),rh=rng(3,5),rx=rng(1,COLS-rw-1),ry=rng(1,ROWS-rh-1);
+    if(rooms.some(r=>rx<r.x+r.w+1&&rx+rw>r.x-1&&ry<r.y+r.h+1&&ry+rh>r.y-1))continue;
+    for(let y=ry;y<ry+rh;y++)for(let x=rx;x<rx+rw;x++)m[y][x]=1;
+    rooms.push({x:rx,y:ry,w:rw,h:rh});
+  }
+  for(let i=1;i<rooms.length;i++){
+    let x1=~~(rooms[i-1].x+rooms[i-1].w/2),y1=~~(rooms[i-1].y+rooms[i-1].h/2);
+    let x2=~~(rooms[i].x+rooms[i].w/2),y2=~~(rooms[i].y+rooms[i].h/2);
+    while(x1!==x2){m[y1][x1]=1;x1+=x1<x2?1:-1;}
+    while(y1!==y2){m[y1][x1]=1;y1+=y1<y2?1:-1;}
+  }
+  return{m,rooms};
+}
+function floorTiles(m,ex=[]){
+  const t=[];for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)
+    if(m[y][x]===1&&!ex.some(e=>e.x===x&&e.y===y))t.push({x,y});
+  return t;
+}
+function randFloor(m,ex){const t=floorTiles(m,ex);return t.length?t[rng(0,t.length-1)]:null;}
+function calcFov(px,py,m){
+  const v=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  for(let a=0;a<360;a+=2){
+    let rx=px,ry=py;
+    const dx=Math.cos(a*Math.PI/180)*0.45,dy=Math.sin(a*Math.PI/180)*0.45;
+    for(let r=0;r<7;r++){
+      const cx=Math.round(rx),cy=Math.round(ry);
+      if(cx<0||cx>=COLS||cy<0||cy>=ROWS)break;
+      v[cy][cx]=true;if(m[cy][cx]===0)break;
+      rx+=dx;ry+=dy;
+    }
+  }
+  return v;
+}
+
+// ================================================================
+// 状態同期
+// ================================================================
+function getState(){return{gmap,hero,enemies,items,traps,fl,done,staX,staY,turn,demonPtLeft,turnCount,demonSkills,deadEnemies};}
+function syncState(){sendWS({type:'state_sync',state:getState()});}
+function applyStateSync(state){
+  gmap=state.gmap;hero=state.hero;enemies=state.enemies;items=state.items;
+  traps=state.traps;fl=state.fl;done=state.done;staX=state.staX;staY=state.staY;
+  turn=state.turn;demonPtLeft=state.demonPtLeft;turnCount=state.turnCount||0;
+  demonSkills=state.demonSkills||DEMON_SKILLS.map(s=>({...s}));
+  deadEnemies=state.deadEnemies||[];
+  selectedCard=-1;
+  if(!hero.rev||hero.rev.length!==ROWS)hero.rev=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  else hero.rev=hero.rev.map(row=>Array.from(row));
+  render();
+  if(done&&state.endTitle){showOverlay(state.endTitle,state.endMsg,state.endColor);return;}
+  if(done)return;
+  updateWaitDisplay();
+}
+
+// ================================================================
+// スプライト
+// ================================================================
+function drawSprite(type,x,y){
+  const px=x*TS,py=y*TS;ctx.save();
+  if(type==='hero'){
+    ctx.translate(px,py);
+    if(hero.barrier>0){ctx.fillStyle='rgba(80,60,200,0.25)';ctx.fillRect(-2,-2,TS+4,TS+4);}
+    if(hero.atk_debuff>0){ctx.fillStyle='rgba(180,0,180,0.15)';ctx.fillRect(-1,-1,TS+2,TS+2);}
+    ctx.fillStyle=PAL.heroD;ctx.fillRect(6,10,8,8);
+    ctx.fillStyle=PAL.hero;ctx.fillRect(5,4,10,8);
+    ctx.fillStyle='#fff';ctx.fillRect(7,6,2,2);ctx.fillRect(11,6,2,2);
+    ctx.fillStyle='#000';ctx.fillRect(8,7,1,1);ctx.fillRect(12,7,1,1);
+    ctx.fillStyle='#f5d04a';ctx.fillRect(14,5,2,10);ctx.fillRect(12,7,5,2);
+    ctx.fillStyle=PAL.heroD;ctx.fillRect(6,17,3,3);ctx.fillRect(11,17,3,3);
+    ctx.fillStyle='#f5d04a';ctx.fillRect(7,2,6,2);
+    if(turn==='hero'){ctx.strokeStyle='#6ee7f7';ctx.lineWidth=1.5;ctx.strokeRect(1,1,TS-2,TS-2);}
+  }else if(type==='slime'){
+    ctx.fillStyle=PAL.slimeD;ctx.fillRect(px+4,py+12,12,6);ctx.fillStyle=PAL.slime;ctx.fillRect(px+3,py+7,14,10);
+    ctx.fillStyle='#80ff80';ctx.fillRect(px+5,py+5,10,6);ctx.fillStyle='#000';ctx.fillRect(px+7,py+8,2,3);ctx.fillRect(px+11,py+8,2,3);
+    ctx.fillStyle='#fff';ctx.fillRect(px+7,py+7,2,2);ctx.fillRect(px+11,py+7,2,2);
+  }else if(type==='goblin'){
+    ctx.fillStyle=PAL.goblinD;ctx.fillRect(px+5,py+10,10,9);ctx.fillStyle=PAL.goblin;ctx.fillRect(px+4,py+4,12,9);
+    ctx.fillStyle='#ff5533';ctx.fillRect(px+6,py+6,3,3);ctx.fillRect(px+11,py+6,3,3);ctx.fillStyle='#222';ctx.fillRect(px+7,py+7,2,2);ctx.fillRect(px+12,py+7,2,2);
+    ctx.fillStyle='#f5d04a';ctx.fillRect(px+4,py+3,3,2);ctx.fillRect(px+13,py+3,3,2);ctx.fillStyle=PAL.goblinD;ctx.fillRect(px+5,py+18,3,2);ctx.fillRect(px+12,py+18,3,2);
+  }else if(type==='skeleton'){
+    ctx.fillStyle=PAL.skeletonD;ctx.fillRect(px+6,py+10,8,8);ctx.fillStyle=PAL.skeleton;ctx.fillRect(px+5,py+3,10,9);
+    ctx.fillStyle='#ff3333';ctx.fillRect(px+7,py+5,2,3);ctx.fillRect(px+11,py+5,2,3);ctx.fillStyle=PAL.skeletonD;ctx.fillRect(px+7,py+9,2,1);ctx.fillRect(px+11,py+9,2,1);ctx.fillRect(px+9,py+8,2,1);
+    ctx.fillStyle=PAL.skeleton;ctx.fillRect(px+6,py+17,2,3);ctx.fillRect(px+12,py+17,2,3);ctx.fillRect(px+4,py+11,2,5);ctx.fillRect(px+14,py+11,2,5);
+  }else if(type==='troll'){
+    ctx.fillStyle=PAL.trollD;ctx.fillRect(px+3,py+8,14,11);ctx.fillStyle=PAL.troll;ctx.fillRect(px+2,py+3,16,10);
+    ctx.fillStyle='#c080ff';ctx.fillRect(px+5,py+5,4,4);ctx.fillRect(px+11,py+5,4,4);ctx.fillStyle='#ff2222';ctx.fillRect(px+7,py+7,2,2);ctx.fillRect(px+13,py+7,2,2);
+    ctx.fillStyle=PAL.trollD;ctx.fillRect(px+4,py+18,5,2);ctx.fillRect(px+11,py+18,5,2);ctx.fillStyle='#888';ctx.fillRect(px+1,py+4,2,7);ctx.fillRect(px+17,py+4,2,7);
+  }else if(type==='dragon'){
+    ctx.fillStyle=PAL.dragonD;ctx.fillRect(px+3,py+8,14,11);ctx.fillStyle=PAL.dragon;ctx.fillRect(px+2,py+2,16,10);
+    ctx.fillStyle='#ffff00';ctx.fillRect(px+5,py+4,4,4);ctx.fillRect(px+11,py+4,4,4);ctx.fillStyle='#ff0000';ctx.fillRect(px+7,py+6,2,2);ctx.fillRect(px+13,py+6,2,2);
+    ctx.fillStyle=PAL.dragonD;ctx.fillRect(px+4,py+18,4,2);ctx.fillRect(px+12,py+18,4,2);ctx.fillStyle='#aaa';ctx.fillRect(px+0,py+3,2,9);ctx.fillRect(px+18,py+3,2,9);
+    ctx.fillStyle='#ff8800';ctx.fillRect(px+1,py+12,4,3);ctx.fillRect(px+15,py+12,4,3);
+  }else if(type==='food'){
+    ctx.fillStyle='#c8a040';ctx.fillRect(px+4,py+6,12,10);
+    ctx.fillStyle='#f0c060';ctx.fillRect(px+5,py+5,10,9);
+    ctx.fillStyle='#fff8e0';ctx.fillRect(px+7,py+6,6,6);
+    ctx.fillStyle='#c8a040';ctx.fillRect(px+8,py+4,4,3);
+  }else if(type==='potion'){
+    ctx.fillStyle='#cc3377';ctx.fillRect(px+8,py+5,4,3);ctx.fillStyle=PAL.potion;ctx.fillRect(px+5,py+8,10,8);ctx.fillStyle='#ff88cc';ctx.fillRect(px+7,py+10,3,3);ctx.fillStyle='#f0f0f0';ctx.fillRect(px+7,py+3,6,3);
+  }else if(type==='weapon'){
+    ctx.fillStyle=PAL.weapon;ctx.fillRect(px+9,py+3,2,14);ctx.fillRect(px+5,py+9,10,2);ctx.fillStyle='#aaa';ctx.fillRect(px+8,py+14,4,4);
+  }else if(type==='shield'){
+    ctx.fillStyle='#3a6aaa';ctx.fillRect(px+5,py+4,10,13);ctx.fillStyle=PAL.shield;ctx.fillRect(px+6,py+5,8,11);ctx.fillStyle='#3a6aaa';ctx.fillRect(px+9,py+5,2,11);ctx.fillRect(px+6,py+10,8,2);
+  }else if(type==='mimic'){
+    // ミミック：宝箱に見せかける
+    ctx.fillStyle='#8a6020';ctx.fillRect(px+3,py+7,14,10);ctx.fillStyle='#c08030';ctx.fillRect(px+4,py+8,12,8);ctx.fillStyle='#f5d04a';ctx.fillRect(px+3,py+7,14,2);ctx.fillRect(px+9,py+7,2,10);
+    ctx.fillStyle='#ff2020';ctx.fillRect(px+6,py+10,2,3);ctx.fillRect(px+12,py+10,2,3);
+  }else if(type==='trap_dmg'){ctx.fillStyle='#1e1008';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#503010';ctx.fillRect(px+7,py+7,6,6);ctx.fillRect(px+8,py+5,4,1);ctx.fillRect(px+8,py+14,4,1);ctx.fillRect(px+5,py+8,1,4);ctx.fillRect(px+14,py+8,1,4);
+  }else if(type==='trap_warp'){ctx.fillStyle='#100818';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#301050';ctx.fillRect(px+7,py+7,6,6);ctx.fillRect(px+8,py+5,4,1);ctx.fillRect(px+8,py+14,4,1);ctx.fillRect(px+5,py+8,1,4);ctx.fillRect(px+14,py+8,1,4);
+  }else if(type==='trap_weak'){ctx.fillStyle='#180010';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#600040';ctx.fillRect(px+7,py+7,6,6);ctx.fillRect(px+8,py+5,4,1);ctx.fillRect(px+8,py+14,4,1);ctx.fillRect(px+5,py+8,1,4);ctx.fillRect(px+14,py+8,1,4);
+  }else if(type==='trap_slow'){ctx.fillStyle='#101008';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#404020';ctx.fillRect(px+7,py+7,6,6);ctx.fillRect(px+8,py+5,4,1);ctx.fillRect(px+8,py+14,4,1);ctx.fillRect(px+5,py+8,1,4);ctx.fillRect(px+14,py+8,1,4);
+  }else if(type==='trap_dmg_tri'){ctx.fillStyle='#2e1010';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#e03030';ctx.fillRect(px+6,py+4,8,2);ctx.fillRect(px+4,py+6,2,8);ctx.fillRect(px+14,py+6,2,8);ctx.fillRect(px+6,py+14,8,2);ctx.fillStyle='#ff8800';ctx.fillRect(px+8,py+8,4,4);
+  }else if(type==='trap_warp_tri'){ctx.fillStyle='#10082e';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#6030c0';ctx.fillRect(px+5,py+5,10,10);ctx.fillStyle='#9060f0';ctx.fillRect(px+7,py+7,6,6);ctx.fillStyle='#c090ff';ctx.fillRect(px+9,py+9,2,2);
+  }else if(type==='trap_weak_tri'){ctx.fillStyle='#1e0018';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#c000a0';ctx.fillRect(px+6,py+4,8,2);ctx.fillRect(px+4,py+6,2,8);ctx.fillRect(px+14,py+6,2,8);ctx.fillRect(px+6,py+14,8,2);ctx.fillStyle='#ff40e0';ctx.fillRect(px+8,py+8,4,4);
+  }else if(type==='trap_slow_tri'){ctx.fillStyle='#181808';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#808000';ctx.fillRect(px+6,py+4,8,2);ctx.fillRect(px+4,py+6,2,8);ctx.fillRect(px+14,py+6,2,8);ctx.fillRect(px+6,py+14,8,2);ctx.fillStyle='#e0e000';ctx.fillRect(px+8,py+8,4,4);
+  }else if(type==='stairs'){
+    ctx.fillStyle=PAL.stairsD;for(let i=0;i<4;i++)ctx.fillRect(px+2+i*4,py+14-i*3,16-i*4,3);ctx.fillStyle=PAL.stairs;for(let i=0;i<4;i++)ctx.fillRect(px+2+i*4,py+12-i*3,16-i*4,2);
+  }else if(type==='wall'){
+    ctx.fillStyle=PAL.wall;ctx.fillRect(px,py,TS,TS);ctx.fillStyle=PAL.wallL;ctx.fillRect(px+1,py+1,TS-2,2);ctx.fillRect(px+1,py+1,2,TS-2);ctx.fillRect(px+8,py+4,4,1);ctx.fillRect(px+3,py+10,5,1);ctx.fillRect(px+12,py+12,4,1);
+  }else if(type==='floor'){
+    ctx.fillStyle=PAL.floor;ctx.fillRect(px,py,TS,TS);ctx.fillStyle=PAL.floorL;ctx.fillRect(px+2,py+3,1,1);ctx.fillRect(px+8,py+7,1,1);ctx.fillRect(px+14,py+12,1,1);ctx.fillRect(px+5,py+14,2,1);ctx.fillRect(px+13,py+2,1,2);
+  }
+  ctx.restore();
+}
+
+// ================================================================
+// レンダリング
+// ================================================================
+function render(){
+  ctx.fillStyle=PAL.bg;ctx.fillRect(0,0,CW,CH);
+  const fov=calcFov(hero.x,hero.y,gmap);
+  const isDemon=myRole==='demon';
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(fov[y][x])hero.rev[y][x]=true;
+    const vis=fov[y][x]||isDemon;
+    const rev=hero.rev[y][x]||isDemon;
+    if(!rev){ctx.fillStyle=PAL.fog;ctx.fillRect(x*TS,y*TS,TS,TS);continue;}
+    const tr=traps.find(t=>t.x===x&&t.y===y);
+    if(tr){
+      if(tr.triggered) drawSprite('trap_'+tr.trapType+'_tri',x,y);
+      else if(isDemon)  drawSprite('trap_'+tr.trapType,x,y);
+      else if(tr.trapType==='mimic') drawSprite('mimic',x,y); // ミミックは見える
+      else              drawSprite('floor',x,y);
+    }else{
+      gmap[y][x]===0?drawSprite('wall',x,y):drawSprite('floor',x,y);
+    }
+    if(!vis){ctx.fillStyle=PAL.fogV;ctx.fillRect(x*TS,y*TS,TS,TS);}
+  }
+  if(hero.rev[staY][staX]||isDemon){
+    const bossAlive=enemies.some(e=>e.isBoss);
+    if(fl===MAX_FLOOR&&bossAlive){
+      // ボス生存中は封印表示
+      ctx.fillStyle='#300010';ctx.fillRect(staX*TS,staY*TS,TS,TS);
+      ctx.fillStyle='#c00040';ctx.font='8px monospace';ctx.fillText('⛔',staX*TS+3,staY*TS+13);
+    }else drawSprite('stairs',staX,staY);
+  }
+  items.filter(i=>fov[i.y][i.x]||isDemon).forEach(i=>drawSprite(i.type,i.x,i.y));
+  enemies.forEach(e=>{
+    if(!fov[e.y][e.x]&&!isDemon)return;
+    drawSprite(e.stype,e.x,e.y);
+    const ex=e.x*TS+1,ey=e.y*TS-4;
+    ctx.fillStyle='#1a1a1a';ctx.fillRect(ex,ey,TS-2,3);
+    ctx.fillStyle=e.isBoss?'#d040d0':'#c03030';
+    ctx.fillRect(ex,ey,Math.round((TS-2)*e.hp/e.maxHp),3);
+    if(e.isBoss){ctx.fillStyle='#d080f0';ctx.font='7px monospace';ctx.fillText('BOSS',e.x*TS+2,e.y*TS-6);}
+  });
+  drawSprite('hero',hero.x,hero.y);
+  {const hx=hero.x*TS+1,hy=hero.y*TS-5;ctx.fillStyle='#1a1a1a';ctx.fillRect(hx,hy,TS-2,3);ctx.fillStyle='#3a9fd0';ctx.fillRect(hx,hy,Math.round((TS-2)*hero.hp/hero.maxHp),3);}
+  updateUI();
+}
+
+// ================================================================
+// UI更新
+// ================================================================
+function updateUI(){
+  if(!hero)return;
+  document.getElementById('hv1').textContent=hero.hp+'/'+hero.maxHp;
+  document.getElementById('hpf1').style.width=Math.max(0,hero.hp/hero.maxHp*100)+'%';
+  document.getElementById('av1').textContent=hero.atk+(hero.atk_debuff>0?'(↓)':'');
+  document.getElementById('dv1').textContent=hero.def;
+  document.getElementById('lv1').textContent=hero.lv;
+  document.getElementById('gv1').textContent=hero.gold;
+  const hungerPct=Math.max(0,(hero.hunger||0)/(hero.maxHunger||100)*100);
+  document.getElementById('hungerVal').textContent=(hero.hunger||0)+'%';
+  document.getElementById('hungerFill').style.width=hungerPct+'%';
+  document.getElementById('hungerFill').style.background=hungerPct>50?'#6ab040':hungerPct>20?'#c0a000':'#c03000';
+  const total=demonPtForFloor(fl);
+  document.getElementById('ptVal').textContent=demonPtLeft+'/'+total;
+  document.getElementById('fl2').textContent=fl;
+  document.getElementById('fl').textContent='B'+fl+'F'+(fl===MAX_FLOOR?' ⚠BOSS':'');
+  document.getElementById('turnCount').textContent=turnCount;
+  const ptRow=document.getElementById('ptRow');ptRow.innerHTML='';
+  for(let i=0;i<total;i++){const d=document.createElement('div');d.className='pip'+(i<(total-demonPtLeft)?' used':'');ptRow.appendChild(d);}
+  // 勇者スキル
+  const sk1=document.getElementById('sk1row');sk1.innerHTML='';
+  hero.skills.forEach(sk=>{
+    const d=document.createElement('div');
+    d.className='sk p1sk'+(sk.cd===0?' ready':' cooldown');
+    d.title=sk.desc+(sk.cd>0?' CD:'+sk.cd:'');
+    d.innerHTML=sk.icon+' '+sk.name+(sk.cd>0?'<span class="cdnum">'+sk.cd+'</span>':'');
+    d.onclick=()=>{if(myRole==='hero'&&turn==='hero'&&sk.cd===0)useHeroSkill(sk);};
+    sk1.appendChild(d);
+  });
+  // 魔王スキル
+  const dsr=document.getElementById('demonSkillRow');dsr.innerHTML='';
+  if(demonSkills)demonSkills.forEach((sk,i)=>{
+    const d=document.createElement('div');
+    d.className='sk dsk'+(sk.cd===0?' ready':' cooldown');
+    d.title=sk.desc+(sk.cd>0?' CD:'+sk.cd:'');
+    d.innerHTML=sk.icon+' '+sk.name+(sk.cd>0?'<span class="cdnum">'+sk.cd+'</span>':'');
+    d.onclick=()=>{if(myRole==='demon'&&turn==='demon'&&sk.cd===0)useDemonSkill(sk);};
+    dsr.appendChild(d);
+  });
+  const tb=document.getElementById('turnbar');
+  if(turn==='hero'){
+    tb.className='t1';tb.textContent='⚔ 勇者のターン (T'+turnCount+')';
+    document.getElementById('p1stat').className='pstat active';
+    document.getElementById('p2stat').className='pstat';
+    document.getElementById('demonPanel').classList.remove('show');
+    ['bu','bl','bd','br'].forEach(id=>document.getElementById(id).className='db t1a');
+  }else{
+    tb.className='t2';tb.textContent='👿 魔王のターン（残'+demonPtLeft+'pt）';
+    document.getElementById('p1stat').className='pstat';
+    document.getElementById('p2stat').className='pstat active';
+    ['bu','bl','bd','br'].forEach(id=>document.getElementById(id).className='db');
+    if(myRole==='demon'){document.getElementById('demonPanel').classList.add('show');renderDemonPanel();}
+  }
+  updateWaitDisplay();
+}
+
+function updateWaitDisplay(){
+  const isMyTurn=(turn==='hero'&&myRole==='hero')||(turn==='demon'&&myRole==='demon');
+  document.getElementById('waitTurn').className=isMyTurn?'':'show';
+}
+
+let currentTab='mob';
+function switchTab(tab){
+  currentTab=tab;selectedCard=-1;
+  document.getElementById('tabMob').className='tab'+(tab==='mob'?' on':'');
+  document.getElementById('tabTrap').className='tab'+(tab==='trap'?' on':'');
+  renderDemonPanel();
+}
+
+function renderDemonPanel(){
+  document.getElementById('ptLabel2').textContent='残'+demonPtLeft+'pt';
+  const grid=document.getElementById('cardGrid');grid.innerHTML='';
+  const cards=currentTab==='mob'?MON_CARDS:TRAP_CARDS;
+  // フロアで使用可能なカードに絞る（モンスターはテーブルで制限）
+  const allowed=FLOOR_ENEMY_TABLE[Math.min(fl,5)];
+  cards.forEach((c,i)=>{
+    if(currentTab==='mob'&&!allowed.includes(c.stype))return;
+    const ok=demonPtLeft>=c.cost;
+    const d=document.createElement('div');
+    d.className='card'+(selectedCard===c.id?' sel':'')+(ok?'':' nopt');
+    let pips='';for(let j=0;j<c.cost;j++)pips+='<div class="cpip"></div>';
+    d.innerHTML=`<div class="cico">${c.ico}</div><div class="cinfo"><div class="cname">${c.name}</div><div class="cdesc">${c.desc}</div></div><div class="ccost">${pips}</div>`;
+    if(ok)d.onclick=()=>{selectedCard=c.id;renderDemonPanel();};
+    grid.appendChild(d);
+  });
+  const btn=document.getElementById('deployBtn');
+  const info=document.getElementById('deployInfo');
+  if(demonPtLeft===0){info.textContent='全PT消費。Enterで終了';btn.textContent='✓ ターン終了';btn.disabled=false;}
+  else if(selectedCard){info.textContent='ランダム配置 → Enter';btn.textContent='🎲 召喚（Enter）';btn.disabled=false;}
+  else{info.textContent='カードを選んでEnter';btn.textContent='🎲 召喚（Enter）';btn.disabled=true;}
+}
+
+function log(t,c){
+  const b=document.getElementById('log'),d=document.createElement('div');
+  d.className='lm '+(c||'');d.textContent=t;b.prepend(d);
+  while(b.children.length>50)b.removeChild(b.lastChild);
+}
+
+// ================================================================
+// 勇者アクション
+// ================================================================
+function heroMove(dx,dy){
+  if(done||turn!=='hero'||myRole!=='hero')return;
+  // 足止め罠の効果
+  if(hero.skip>0){hero.skip--;log('足止め！1ターン行動できない','o');endHeroTurn();return;}
+  const nx=hero.x+dx,ny=hero.y+dy;
+  if(nx<0||nx>=COLS||ny<0||ny>=ROWS||gmap[ny][nx]===0)return;
+  const ei=enemies.findIndex(e=>e.x===nx&&e.y===ny);
+  if(ei!==-1){heroAttack(ei);return;}
+  hero.x=nx;hero.y=ny;
+  checkTrap(nx,ny);if(done)return;
+  const ii=items.findIndex(i=>i.x===nx&&i.y===ny);
+  if(ii!==-1)pickUp(ii);
+  if(nx===staX&&ny===staY){
+    if(fl===MAX_FLOOR&&enemies.some(e=>e.isBoss)){log('⚠ ボスを倒すまで進めない！','r');return;}
+    log('▼ 階段！B'+(fl+1)+'Fへ','g');
+    fl++;demonPtLeft=demonPtForFloor(fl);loadFloor();endHeroTurn();return;
+  }
+  endHeroTurn();
+}
+
+function heroAttack(ei){
+  const e=enemies[ei];
+  const atkVal=Math.max(1,hero.atk-(hero.atk_debuff||0));
+  const dmg=Math.max(1,atkVal-e.def+rng(-1,1));
+  e.hp-=dmg;log('⚔ '+e.name+'に'+dmg+'ダメージ！','g');
+  if(e.hp<=0){
+    log(e.name+'撃破！EXP+'+e.exp,'y');
+    hero.exp+=e.exp;hero.gold+=e.gold;
+    const wasBoss=e.isBoss;
+    deadEnemies.push({...e}); // 復活スキル用に記録
+    enemies.splice(ei,1);lvUp();
+    if(wasBoss&&fl===MAX_FLOOR){endGame('勇者の勝利！','魔王の使徒を討伐！ダンジョン攻略完了！','#6ee7f7');return;}
+  }else{
+    const edm=Math.max(1,e.atk-hero.def+rng(-1,1));
+    if(hero.barrier>0)log(e.name+'の反撃をバリアで無効！','p');
+    else{hero.hp-=edm;log(e.name+'反撃 HP-'+edm,'r');if(hero.hp<=0){endGame('魔王の勝利！','勇者が力尽きた…','#d080f0');return;}}
+  }
+  endHeroTurn();
+}
+
+function checkTrap(x,y){
+  const ti=traps.findIndex(t=>t.x===x&&t.y===y&&!t.triggered);
+  if(ti<0)return;
+  const tr=traps[ti];
+  // ミミックは発動時に敵として追加
+  if(tr.trapType==='mimic'){
+    traps.splice(ti,1);
+    const hp=15+fl*2;
+    enemies.push({x,y,stype:'goblin',name:'ミミック',hp,maxHp:hp,atk:6+fl,def:2,exp:8,gold:5});
+    log('📦 ミミックだ！','r');return;
+  }
+  traps[ti].triggered=true;
+  if(tr.trapType==='dmg'){
+    if(hero.barrier>0){log('⚠ 罠！バリアで無効','p');return;}
+    hero.hp-=10;log('⚠ ダメージ罠！HP-10','r');
+    if(hero.hp<=0)endGame('魔王の勝利！','勇者が罠で力尽きた…','#d080f0');
+  }else if(tr.trapType==='warp'){
+    const pos=randFloor(gmap,[{x:hero.x,y:hero.y},{x:staX,y:staY}]);
+    if(pos){hero.x=pos.x;hero.y=pos.y;}
+    log('🌀 ワープ罠！転送された','o');
+  }else if(tr.trapType==='weak'){
+    hero.atk_debuff=(hero.atk_debuff||0)+2;log('🩸 弱体罠！ATK-2（3T）','o');
+    // 3ターン後に解除
+    hero._weakTimer=(hero._weakTimer||0)+3;
+  }else if(tr.trapType==='slow'){
+    hero.skip=1;log('🕸 足止め罠！次ターンスキップ','o');
+  }
+}
+
+function pickUp(ii){
+  const it=items[ii];
+  if(it.eff==='heal'){hero.hp=Math.min(hero.maxHp,hero.hp+it.val);log('💊 HP+'+it.val,'g');}
+  else if(it.eff==='atk'){hero.atk+=it.val;log('⚔ 剣装備 ATK+'+it.val,'y');}
+  else if(it.eff==='def'){hero.def+=it.val;log('🛡 盾装備 DEF+'+it.val,'y');}
+  else if(it.eff==='food'){
+    hero.hunger=Math.min(hero.maxHunger,hero.hunger+it.val);
+    log('🍙 '+(it.name||'食料')+'！満腹度+'+ it.val+' ('+hero.hunger+'/'+hero.maxHunger+')','g');
+  }
+  items.splice(ii,1);
+}
+
+function lvUp(){
+  if(hero.exp>=hero.lv*10){
+    hero.exp-=hero.lv*10;hero.lv++;hero.maxHp+=5;hero.hp=hero.maxHp;hero.atk++;
+    log('★ LV'+hero.lv+'! HP全回復','y');
+  }
+}
+
+function useHeroSkill(sk){
+  if(done||turn!=='hero'||myRole!=='hero'||sk.cd>0)return;
+  if(sk.type==='aoe'){
+    let hits=0;
+    [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dy,dx])=>{
+      const ei=enemies.findIndex(e=>e.x===hero.x+dx&&e.y===hero.y+dy);
+      if(ei<0)return;
+      const dmg=Math.max(1,hero.atk-enemies[ei].def+rng(0,2));enemies[ei].hp-=dmg;hits++;
+      if(enemies[ei].hp<=0){hero.exp+=enemies[ei].exp;hero.gold+=enemies[ei].gold;deadEnemies.push({...enemies[ei]});enemies.splice(ei,1);lvUp();}
+    });
+    log('⚔ 斬撃！'+(hits?hits+'体ヒット':'空振り'),'y');
+  }else if(sk.type==='barrier'){hero.barrier=2;log('🔮 バリア！2T無敵','p');}
+  else if(sk.type==='dash'){
+    const dx=staX>hero.x?1:-1;
+    for(let i=0;i<2;i++){
+      const nx=hero.x+dx;if(nx<0||nx>=COLS||gmap[hero.y][nx]===0)break;
+      if(enemies.some(e=>e.x===nx&&e.y===hero.y))break;
+      hero.x=nx;
+    }
+    checkTrap(hero.x,hero.y);if(done)return;
+    log('💨 突進！','y');
+  }else if(sk.type==='heal'){hero.hp=Math.min(hero.maxHp,hero.hp+15);log('💊 HP+15','g');}
+  sk.cd=sk.baseCd;endHeroTurn();
+}
+
+function endHeroTurn(){
+  turnCount++;
+  // 満腹度を毎ターン-2減らす
+  if(hero.hunger>0){
+    hero.hunger=Math.max(0,hero.hunger-2);
+    if(hero.hunger===0)log('🫙 お腹が空いた！HPが減り始める！','r');
+  }
+  // 自然回復：満腹度30以上のとき5ターンごとにHP+1
+  if(turnCount%5===0&&hero.hp<hero.maxHp){
+    if(hero.hunger>=30){
+      hero.hp=Math.min(hero.maxHp,hero.hp+1);
+      log('💧 自然回復 HP+1（'+hero.hp+'/'+hero.maxHp+'）','g');
+    }
+  }
+  // 飢え：満腹度0のとき3ターンごとにHP-2
+  if(hero.hunger===0&&turnCount%3===0){
+    hero.hp-=2;
+    log('💀 飢えでHP-2！（'+hero.hp+'/'+hero.maxHp+'）','r');
+    if(hero.hp<=0){endGame('魔王の勝利！','勇者が飢えで力尽きた…','#d080f0');return;}
+  }
+  if(hero.barrier>0)hero.barrier--;
+  hero.skills.forEach(sk=>{if(sk.cd>0)sk.cd--;});
+  // 弱体タイマー
+  if(hero._weakTimer>0){hero._weakTimer--;if(hero._weakTimer===0){hero.atk_debuff=0;log('弱体が解除された','g');}}
+  // 魔王スキルのCDを減らす
+  if(demonSkills)demonSkills.forEach(sk=>{if(sk.cd>0)sk.cd--;});
+  enemyAI();if(done)return;
+  if(demonPtLeft===0){
+    // PT0 は自動スキップ。スキルは勇者ターン中でも割り込み発動できる
+    turn='hero';render();syncState();
+    log('（魔王PT0のため自動スキップ）','o');
+    log('⚔ 勇者のターン','b');
+  }else{
+    turn='demon';selectedCard=-1;render();syncState();
+    log('👿 魔王のターン','p');
+  }
+}
+
+// ================================================================
+// 敵AI
+// ================================================================
+function enemyAI(){
+  for(let i=enemies.length-1;i>=0;i--){
+    const e=enemies[i];if(dist(e,hero)>8)continue;
+    const dx=hero.x-e.x,dy=hero.y-e.y;
+    for(const[mx,my]of[[Math.sign(dx),0],[0,Math.sign(dy)]]){
+      const nx=e.x+mx,ny=e.y+my;
+      if(nx<0||nx>=COLS||ny<0||ny>=ROWS||gmap[ny][nx]===0)continue;
+      if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
+      if(nx===hero.x&&ny===hero.y){
+        if(hero.barrier>0){hero.barrier--;log(e.name+'の攻撃をバリアで無効！','p');break;}
+        const edm=Math.max(1,e.atk-hero.def+rng(-1,1));hero.hp-=edm;
+        log(e.name+'→勇者 '+edm+'ダメージ！','r');
+        if(hero.hp<=0){endGame('魔王の勝利！','勇者がモンスターに倒された…','#d080f0');return;}
+        break;
+      }
+      e.x=nx;e.y=ny;break;
+    }
+  }
+}
+
+// ================================================================
+// 魔王アクション
+// ================================================================
+function getPlaceableTiles(){
+  return floorTiles(gmap,[]).filter(t=>
+    !enemies.find(e=>e.x===t.x&&e.y===t.y)&&
+    !(hero.x===t.x&&hero.y===t.y)&&
+    !(staX===t.x&&staY===t.y)&&
+    !traps.find(tr=>tr.x===t.x&&tr.y===t.y)&&
+    dist(t,hero)>=3);
+}
+
+function deploySelected(){
+  if(done||turn!=='demon'||myRole!=='demon')return;
+  if(demonPtLeft===0){endDemonTurn();return;}
+  if(!selectedCard){log('カードを選んでください','o');return;}
+  const allCards=[...MON_CARDS,...TRAP_CARDS];
+  const c=allCards.find(x=>x.id===selectedCard);
+  if(!c||demonPtLeft<c.cost){log('ポイントが足りない！','o');return;}
+  const tiles=getPlaceableTiles();
+  if(!tiles.length){log('配置できる場所がない','o');return;}
+  const pos=tiles[rng(0,tiles.length-1)];
+  demonPtLeft-=c.cost;
+  if(c.stype){
+    const hp=c.hp+fl*2;
+    enemies.push({x:pos.x,y:pos.y,stype:c.stype,name:c.name,hp,maxHp:hp,atk:c.atk+fl,def:c.def,exp:c.exp,gold:c.gold});
+    log('👿 '+c.name+'召喚！（残'+demonPtLeft+'pt）','p');
+  }else{
+    traps.push({x:pos.x,y:pos.y,trapType:c.trapType,triggered:false});
+    log('👿 '+c.name+'設置！（残'+demonPtLeft+'pt）','p');
+  }
+  selectedCard=null;render();
+  sendWS({type:'demon_action',state:getState()});
+}
+
+function useDemonSkill(sk){
+  // ポイント0時は勇者ターン中でもスキル割り込み可能
+  if(done||myRole!=='demon'||sk.cd>0)return;
+  if(turn!=='demon'&&demonPtLeft>0)return; // PT残量あり時は自分のターンのみ
+  if(sk.type==='quake'){
+    enemies.forEach(e=>{e.atk+=2;e._atkBuff=(e._atkBuff||0)+3;});
+    log('🌋 地震！全モンスターATK+2（3T）','p');
+  }else if(sk.type==='curse'){
+    hero.atk_debuff=(hero.atk_debuff||0)+2;hero._weakTimer=(hero._weakTimer||0)+3;
+    log('💜 呪い！勇者のATK-2（3T）','p');
+  }else if(sk.type==='revive'){
+    if(!deadEnemies.length){log('復活できる敵がいない','o');return;}
+    const base=deadEnemies[deadEnemies.length-1];
+    const tiles=getPlaceableTiles();if(!tiles.length){log('配置場所なし','o');return;}
+    const pos=tiles[rng(0,tiles.length-1)];
+    const hp=Math.ceil(base.maxHp/2);
+    enemies.push({...base,x:pos.x,y:pos.y,hp,maxHp:hp});
+    deadEnemies.pop();
+    log('💀 '+base.name+'を復活！（HP半分）','p');
+  }else if(sk.type==='veil'){
+    traps.forEach(t=>{t.triggered=false;});
+    log('🌫 隠蔽！全罠をリセット！','p');
+  }
+  sk.cd=sk.baseCd;render();
+  // PT0の割り込み発動は勇者ターンのまま継続（ターン消費なし）
+  const msg = demonPtLeft===0
+    ? {type:'state_sync', state:getState()}      // PT0：状態同期のみ
+    : {type:'demon_action', state:getState()};   // PT残：ターン交代
+  sendWS(msg);
+}
+
+function endDemonTurn(){
+  if(done||turn!=='demon'||myRole!=='demon')return;
+  turn='hero';selectedCard=null;render();
+  sendWS({type:'demon_action',state:getState()});
+  log('⚔ 勇者のターン','b');
+}
+
+// ================================================================
+// ゲーム終了・リザルト
+// ================================================================
+function endGame(title,msg,color){
+  done=true;
+  showOverlay(title,msg,color);
+  sendWS({type:'state_sync',state:{...getState(),endTitle:title,endMsg:msg,endColor:color}});
+}
+
+function showOverlay(title,msg,color){
+  const ot=document.getElementById('ot');
+  ot.textContent=title;ot.style.color=color||'#f5d04a';
+  document.getElementById('op').textContent=msg;
+  // リザルト表
+  const tbl=document.getElementById('resultTable');
+  tbl.innerHTML=`
+    <tr><td>到達階層</td><td>B${fl}F</td></tr>
+    <tr><td>ターン数</td><td>${turnCount}</td></tr>
+    <tr><td>勇者LV</td><td>${hero?hero.lv:'-'}</td></tr>
+    <tr><td>獲得GOLD</td><td>${hero?hero.gold:'-'}</td></tr>
+    <tr><td>撃破数</td><td>${deadEnemies?deadEnemies.length:'-'}</td></tr>`;
+  document.getElementById('ov').classList.add('s');
+}
+
+// ================================================================
+// チャット
+// ================================================================
+function addChat(role,text){
+  const b=document.getElementById('chatLog'),d=document.createElement('div');
+  d.className='cm '+role;d.textContent=(role==='hero'?'⚔ ':'👿 ')+text;
+  b.prepend(d);while(b.children.length>20)b.removeChild(b.lastChild);
+}
+document.getElementById('chatSend').onclick=()=>{
+  const inp=document.getElementById('chatInput'),t=inp.value.trim();if(!t)return;
+  sendWS({type:'chat',text:t});addChat(myRole,t);inp.value='';
+};
+document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('chatSend').click();}});
+
+// ================================================================
+// キーボード
+// ================================================================
+document.addEventListener('keydown',e=>{
+  if(!hero||done)return;
+  if(document.activeElement===document.getElementById('chatInput'))return;
+  if(turn==='hero'&&myRole==='hero'){
+    const mv={w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
+    if(mv[e.key]){e.preventDefault();heroMove(...mv[e.key]);}
+    else if('qQ'.includes(e.key)){e.preventDefault();const s=hero.skills[0];if(s?.cd===0)useHeroSkill(s);}
+    else if('eE'.includes(e.key)){e.preventDefault();const s=hero.skills[1];if(s?.cd===0)useHeroSkill(s);}
+    else if('rR'.includes(e.key)){e.preventDefault();const s=hero.skills[2];if(s?.cd===0)useHeroSkill(s);}
+    else if('fF'.includes(e.key)){e.preventDefault();const s=hero.skills[3];if(s?.cd===0)useHeroSkill(s);}
+    else if(e.key===' '){e.preventDefault();log('勇者が待機','');endHeroTurn();}
+  }else if(turn==='demon'&&myRole==='demon'){
+    if(e.key>='1'&&e.key<='5'){
+      e.preventDefault();
+      const cards=currentTab==='mob'?MON_CARDS.filter(c=>FLOOR_ENEMY_TABLE[Math.min(fl,5)].includes(c.stype)):TRAP_CARDS;
+      const c=cards[parseInt(e.key)-1];
+      if(c&&demonPtLeft>=c.cost){selectedCard=c.id;renderDemonPanel();}
+    }else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();}
+    else if(e.key==='Escape'){e.preventDefault();selectedCard=null;renderDemonPanel();}
+    else if('zZ'.includes(e.key)){e.preventDefault();const s=demonSkills?.[0];if(s?.cd===0)useDemonSkill(s);}
+    else if('xX'.includes(e.key)){e.preventDefault();const s=demonSkills?.[1];if(s?.cd===0)useDemonSkill(s);}
+    else if('cC'.includes(e.key)){e.preventDefault();const s=demonSkills?.[2];if(s?.cd===0)useDemonSkill(s);}
+    else if('vV'.includes(e.key)){e.preventDefault();const s=demonSkills?.[3];if(s?.cd===0)useDemonSkill(s);}
+    else if('mM'.includes(e.key)){e.preventDefault();switchTab(currentTab==='mob'?'trap':'mob');}
+  }
+  // PT0の魔王は勇者ターン中でもスキルキー受付
+  if(myRole==='demon'&&turn==='hero'&&demonPtLeft===0&&demonSkills){
+    if('zZ'.includes(e.key)){e.preventDefault();const s=demonSkills[0];if(s?.cd===0)useDemonSkill(s);}
+    else if('xX'.includes(e.key)){e.preventDefault();const s=demonSkills[1];if(s?.cd===0)useDemonSkill(s);}
+    else if('cC'.includes(e.key)){e.preventDefault();const s=demonSkills[2];if(s?.cd===0)useDemonSkill(s);}
+    else if('vV'.includes(e.key)){e.preventDefault();const s=demonSkills[3];if(s?.cd===0)useDemonSkill(s);}
+  }
+});
+
+document.getElementById('bu').onclick=()=>heroMove(0,-1);
+document.getElementById('bd').onclick=()=>heroMove(0,1);
+document.getElementById('bl').onclick=()=>heroMove(-1,0);
+document.getElementById('br').onclick=()=>heroMove(1,0);
+document.getElementById('skip-btn').onclick=()=>{
+  if(turn==='hero'&&myRole==='hero'&&!done){log('勇者が待機','');endHeroTurn();}
+  else if(turn==='demon'&&myRole==='demon'&&!done)endDemonTurn();
+};
+document.getElementById('deployBtn').onclick=()=>{if(demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();};
+document.getElementById('rb').onclick=()=>location.reload();
+</script>
+</body>
+</html>

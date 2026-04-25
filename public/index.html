@@ -23,6 +23,12 @@ body{background:#08080f;display:flex;justify-content:center;padding:12px;font-fa
 #waitingMsg{font-size:12px;color:#f5d04a;text-align:center;display:none}
 #roomDisplay{font-size:22px;color:#f5d04a;letter-spacing:6px;text-align:center;padding:8px;background:#0a0a14;border-radius:5px;border:1px solid #3a3a2a;display:none}
 #copyHint{font-size:10px;color:#666;text-align:center;display:none}
+.playerSlot{width:70px;height:70px;border-radius:8px;border:1px solid #2a2a3a;background:#0a0a14;display:flex;align-items:center;justify-content:center;font-size:28px;flex-direction:column;gap:2px}
+.playerSlot .slotLabel{font-size:9px;color:#555}
+.playerSlot.filled{border-color:#f5d04a;background:#141408}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+#matchingDots{animation:blink 1.5s ease-in-out infinite}
+.lobbyBox:hover{border-color:#f5d04a20;background:#0f0f20}
 /* ゲームエリア */
 #gameArea{display:none}
 #topbar{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;margin-bottom:8px}
@@ -118,23 +124,63 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
 <div id="gw">
 <!-- ロビー -->
 <div id="lobby">
-  <h1>⚔ DUNGEON VS</h1>
-  <p>同じWiFi内でリアルタイム対戦</p>
-  <div class="lobbyBox hero">
-    <h2>⚔ 勇者としてプレイ</h2>
-    <p style="font-size:10px;color:#555">ルームを作成してIDを相手に伝える</p>
-    <button class="lbtn blue" id="createBtn">ルームを作成する</button>
-    <div id="roomDisplay"></div>
-    <div id="copyHint">↑ このIDを魔王役に伝えてください</div>
-    <div id="waitingMsg">👿 魔王の参加を待っています...</div>
+  <!-- Step1: ロール選択 -->
+  <div id="stepRole">
+    <h1 style="font-size:22px;color:#f5d04a;letter-spacing:4px;margin-bottom:8px">⚔ DUNGEON VS</h1>
+    <p style="font-size:12px;color:#555;margin-bottom:20px">ロールを選んでください</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+      <div class="lobbyBox hero" style="cursor:pointer" id="selectHero">
+        <h2>⚔ 勇者</h2>
+        <p style="font-size:11px;color:#3a7aaa;line-height:1.8">ダンジョンを探索して<br>B5Fのボスを倒す</p>
+        <div style="font-size:24px;text-align:center;margin-top:4px">🗡</div>
+      </div>
+      <div class="lobbyBox demon" style="cursor:pointer" id="selectDemon">
+        <h2>👿 魔王</h2>
+        <p style="font-size:11px;color:#6a2a8a;line-height:1.8">モンスターを召喚して<br>勇者の攻略を阻止する</p>
+        <div style="font-size:24px;text-align:center;margin-top:4px">👑</div>
+      </div>
+    </div>
+    <div id="lobbyMsg" style="margin-top:12px;font-size:11px;color:#e07070;text-align:center;min-height:16px"></div>
   </div>
-  <div class="lobbyBox demon">
-    <h2>👿 魔王としてプレイ</h2>
-    <p style="font-size:10px;color:#555">勇者役から聞いたIDを入力する</p>
-    <input id="roomInput" type="text" placeholder="ルームID（例: ABC123）" maxlength="6">
-    <button class="lbtn purple" id="joinBtn">ルームに参加する</button>
+
+  <!-- Step2: ルーム操作（ロール選択後に表示） -->
+  <div id="stepRoom" style="display:none;flex-direction:column;align-items:center;gap:14px">
+    <h1 style="font-size:22px;color:#f5d04a;letter-spacing:4px">⚔ DUNGEON VS</h1>
+    <div id="roleDisplay" style="font-size:13px;color:#888;letter-spacing:1px"></div>
+
+    <!-- 新規ルーム作成 -->
+    <div class="lobbyBox" id="createBox">
+      <h2 id="createTitle" style="margin-bottom:4px"></h2>
+      <p style="font-size:10px;color:#555">新しくルームを作って相手を待つ</p>
+      <button class="lbtn" id="createBtn" style="margin-top:4px">ルームを作成する</button>
+      <!-- 待機表示 -->
+      <div id="waitArea" style="display:none">
+        <div id="roomDisplay" style="font-size:24px;color:#f5d04a;letter-spacing:6px;text-align:center;padding:8px;background:#0a0a14;border-radius:5px;border:1px solid #3a3a2a;margin:6px 0"></div>
+        <div style="font-size:10px;color:#666;text-align:center;margin-bottom:6px">↑ このIDを相手に伝えてください</div>
+        <!-- マッチング待機アニメーション -->
+        <div id="matchingArea" style="background:#0a0a14;border-radius:6px;padding:10px;text-align:center">
+          <div id="matchingDots" style="font-size:13px;color:#f5d04a;letter-spacing:2px">相手の参加を待っています</div>
+          <div style="display:flex;justify-content:center;gap:6px;margin-top:8px">
+            <div class="playerSlot" id="slot1"></div>
+            <div style="font-size:18px;color:#333;align-self:center">VS</div>
+            <div class="playerSlot" id="slot2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 既存ルームに参加 -->
+    <div class="lobbyBox" id="joinBox">
+      <h2 id="joinTitle" style="margin-bottom:4px"></h2>
+      <p style="font-size:10px;color:#555">相手から聞いたIDを入力して参加する</p>
+      <input id="roomInput" type="text" placeholder="ルームID（例: ABC123）" maxlength="6"
+        style="background:#0a0a14;border:1px solid #3a3a5a;border-radius:5px;padding:8px;font-size:14px;color:#ddd;font-family:'Courier New',monospace;letter-spacing:3px;text-align:center;width:100%;margin-top:4px">
+      <button class="lbtn" id="joinBtn" style="margin-top:6px">ルームに参加する</button>
+    </div>
+
+    <button onclick="backToRole()" style="background:transparent;border:none;color:#444;font-size:11px;cursor:pointer;font-family:'Courier New',monospace">← ロール選択に戻る</button>
+    <div id="lobbyMsg2" style="font-size:11px;color:#e07070;text-align:center;min-height:16px"></div>
   </div>
-  <div id="lobbyMsg"></div>
 </div>
 <!-- ゲームエリア -->
 <div id="gameArea">
@@ -228,18 +274,97 @@ function connectWS(onReady){
   socket.onerror=()=>setLobbyMsg('接続エラー。サーバーが起動しているか確認してください');
 }
 function sendWS(msg){if(socket&&socket.readyState===1)socket.send(JSON.stringify(msg));}
-function setLobbyMsg(t){document.getElementById('lobbyMsg').textContent=t;}
+// ===== ロビー制御 =====
+let selectedRole=null;
+
+function setLobbyMsg(t){
+  const el=document.getElementById('lobbyMsg')||document.getElementById('lobbyMsg2');
+  if(document.getElementById('stepRoom').style.display!=='none'){
+    document.getElementById('lobbyMsg2').textContent=t;
+  }else{
+    document.getElementById('lobbyMsg').textContent=t;
+  }
+}
+
+function selectRole(role){
+  selectedRole=role;
+  // Step1を隠してStep2を表示
+  document.getElementById('stepRole').style.display='none';
+  document.getElementById('stepRoom').style.display='flex';
+  // ロール表示
+  const isHero=role==='hero';
+  document.getElementById('roleDisplay').textContent=
+    (isHero?'⚔ 勇者':'👿 魔王')+'としてプレイ';
+  document.getElementById('roleDisplay').style.color=isHero?'#6ee7f7':'#d080f0';
+  // ボタンの色をロールに合わせる
+  const createBtn=document.getElementById('createBtn');
+  const joinBtn=document.getElementById('joinBtn');
+  const createBox=document.getElementById('createBox');
+  const joinBox=document.getElementById('joinBox');
+  if(isHero){
+    createBox.style.borderColor='#1a4a7a';
+    joinBox.style.borderColor='#1a4a7a';
+    createBtn.className='lbtn blue';
+    joinBtn.className='lbtn blue';
+    document.getElementById('createTitle').textContent='⚔ 新しいルームを作る';
+    document.getElementById('joinTitle').textContent='⚔ ルームに参加する';
+  }else{
+    createBox.style.borderColor='#6a1a7a';
+    joinBox.style.borderColor='#6a1a7a';
+    createBtn.className='lbtn purple';
+    joinBtn.className='lbtn purple';
+    document.getElementById('createTitle').textContent='👿 新しいルームを作る';
+    document.getElementById('joinTitle').textContent='👿 ルームに参加する';
+  }
+  // スロット表示
+  updateSlots(role,false);
+}
+
+function backToRole(){
+  selectedRole=null;
+  document.getElementById('stepRole').style.display='flex';
+  document.getElementById('stepRoom').style.display='none';
+  document.getElementById('waitArea').style.display='none';
+  document.getElementById('lobbyMsg2').textContent='';
+  if(socket){socket.close();socket=null;}
+}
+
+function updateSlots(role,opponentJoined){
+  const isHero=role==='hero';
+  const s1=document.getElementById('slot1');
+  const s2=document.getElementById('slot2');
+  // slot1 = 自分、slot2 = 相手
+  s1.innerHTML=`<div>${isHero?'⚔':'👿'}</div><div class="slotLabel">${isHero?'勇者（あなた）':'魔王（あなた）'}</div>`;
+  s1.className='playerSlot filled';
+  if(opponentJoined){
+    s2.innerHTML=`<div>${isHero?'👿':'⚔'}</div><div class="slotLabel">${isHero?'魔王':'勇者'}</div>`;
+    s2.className='playerSlot filled';
+  }else{
+    s2.innerHTML=`<div style="font-size:14px;color:#333">?</div><div class="slotLabel">待機中...</div>`;
+    s2.className='playerSlot';
+  }
+}
+
+document.getElementById('selectHero').onclick=()=>selectRole('hero');
+document.getElementById('selectDemon').onclick=()=>selectRole('demon');
 
 function onServerMessage(msg){
   if(msg.type==='room_created'){
     myRoomId=msg.roomId;
+    // 待機エリアを表示
+    document.getElementById('waitArea').style.display='block';
+    document.getElementById('createBtn').style.display='none';
     document.getElementById('roomDisplay').textContent=msg.roomId;
-    document.getElementById('roomDisplay').style.display='block';
-    document.getElementById('copyHint').style.display='block';
-    document.getElementById('waitingMsg').style.display='block';
-    setLobbyMsg('');
+    updateSlots(selectedRole,false);
+    document.getElementById('lobbyMsg2').textContent='';
   }else if(msg.type==='game_start'){
-    startGame();
+    // 相手が参加した！スロットを埋めてからゲームへ
+    updateSlots(selectedRole,true);
+    document.getElementById('matchingDots').textContent='マッチング成立！';
+    document.getElementById('matchingDots').style.animation='none';
+    document.getElementById('matchingDots').style.color='#5dbb8a';
+    myRole=msg.yourRole;
+    setTimeout(()=>startGame(),800);
   }else if(msg.type==='state_sync'){
     applyStateSync(msg.state);
   }else if(msg.type==='demon_action'){
@@ -248,21 +373,23 @@ function onServerMessage(msg){
   }else if(msg.type==='chat'){
     addChat(msg.role,msg.text);
   }else if(msg.type==='error'){
-    setLobbyMsg(msg.message);
+    document.getElementById('lobbyMsg2').textContent=msg.message;
   }else if(msg.type==='opponent_disconnected'){
     showOverlay('通信切断','相手が切断しました','#e07070');
   }
 }
 
 document.getElementById('createBtn').onclick=()=>{
-  myRole='hero';setLobbyMsg('接続中...');
-  connectWS(()=>sendWS({type:'create_room'}));
+  if(!selectedRole)return;
+  document.getElementById('lobbyMsg2').textContent='接続中...';
+  connectWS(()=>sendWS({type:'create_room',role:selectedRole}));
 };
 document.getElementById('joinBtn').onclick=()=>{
+  if(!selectedRole)return;
   const id=document.getElementById('roomInput').value.trim().toUpperCase();
-  if(id.length<4){setLobbyMsg('IDを入力してください');return;}
-  myRole='demon';setLobbyMsg('接続中...');
-  connectWS(()=>sendWS({type:'join_room',roomId:id}));
+  if(id.length<4){document.getElementById('lobbyMsg2').textContent='IDを入力してください';return;}
+  document.getElementById('lobbyMsg2').textContent='接続中...';
+  connectWS(()=>sendWS({type:'join_room',roomId:id,role:selectedRole}));
 };
 
 // ================================================================

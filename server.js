@@ -37,18 +37,24 @@ wss.on('connection', (ws) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
 
-    // ---- ルーム作成（勇者側） ----
+    // ---- ルーム作成（ロール指定あり） ----
     if (msg.type === 'create_room') {
+      const role = msg.role === 'demon' ? 'demon' : 'hero';
       let id;
       do { id = makeRoomId(); } while (rooms[id]);
-      rooms[id] = { hero: ws, demon: null, state: null };
+      // ロールに応じてスロットを設定
+      rooms[id] = {
+        hero:  role === 'hero'  ? ws : null,
+        demon: role === 'demon' ? ws : null,
+        state: null
+      };
       ws.roomId = id;
-      ws.role   = 'hero';
-      ws.send(JSON.stringify({ type: 'room_created', roomId: id }));
-      console.log(`ルーム作成: ${id}`);
+      ws.role   = role;
+      ws.send(JSON.stringify({ type: 'room_created', roomId: id, role }));
+      console.log(`ルーム作成: ${id} (${role})`);
     }
 
-    // ---- ルーム参加（魔王側） ----
+    // ---- ルーム参加（空きスロットに入る） ----
     else if (msg.type === 'join_room') {
       const id = (msg.roomId || '').toUpperCase();
       const room = rooms[id];
@@ -56,16 +62,21 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'error', message: 'ルームが見つかりません: ' + id }));
         return;
       }
-      if (room.demon) {
+      // 空きスロットを探す
+      let joinRole = null;
+      if (!room.hero)  joinRole = 'hero';
+      else if (!room.demon) joinRole = 'demon';
+      if (!joinRole) {
         ws.send(JSON.stringify({ type: 'error', message: 'このルームは満員です' }));
         return;
       }
-      room.demon = ws;
-      ws.roomId  = id;
-      ws.role    = 'demon';
-      console.log(`ルーム参加: ${id}`);
-      // 両者にゲーム開始を通知
-      broadcast(room, { type: 'game_start', heroRole: 'hero', demonRole: 'demon' });
+      room[joinRole] = ws;
+      ws.roomId = id;
+      ws.role   = joinRole;
+      console.log(`ルーム参加: ${id} (${joinRole})`);
+      // 両者にゲーム開始を通知（それぞれのロールを伝える）
+      room.hero.send(JSON.stringify({ type: 'game_start', yourRole: 'hero' }));
+      room.demon.send(JSON.stringify({ type: 'game_start', yourRole: 'demon' }));
     }
 
     // ---- ゲームの操作をもう一方に転送 ----

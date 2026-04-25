@@ -29,6 +29,21 @@ body{background:#08080f;display:flex;justify-content:center;padding:12px;font-fa
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 #matchingDots{animation:blink 1.5s ease-in-out infinite}
 .lobbyBox:hover{border-color:#f5d04a20;background:#0f0f20}
+/* 公開マッチング */
+#publicRoomList{display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto}
+.roomRow{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;border:1px solid #2a2a3a;background:#0a0a14;cursor:pointer;transition:border .15s}
+.roomRow:hover{border-color:#f5d04a;background:#141408}
+.roomRow .rhost{flex:1;font-size:11px;color:#ccc}
+.roomRow .rrole{font-size:10px;padding:2px 6px;border-radius:3px}
+.roomRow .rrole.hero{background:#0e1e2e;color:#6ee7f7;border:1px solid #2a5a8a}
+.roomRow .rrole.demon{background:#1a0a2e;color:#d080f0;border:1px solid #6a2a8a}
+.roomRow .rjoin{font-size:10px;color:#f5d04a}
+.noRooms{font-size:11px;color:#444;text-align:center;padding:16px}
+#tabLobby{display:flex;gap:4px;margin-bottom:10px}
+.ltab{flex:1;padding:6px;border-radius:5px;border:1px solid #2a2a3a;font-size:11px;text-align:center;cursor:pointer;color:#666;font-family:'Courier New',monospace}
+.ltab.on{border-color:#f5d04a;color:#f5d04a;background:#141408}
+.nameInput{background:#0a0a14;border:1px solid #2a2a3a;border-radius:4px;padding:5px 8px;font-size:11px;color:#ddd;font-family:'Courier New',monospace;width:100%}
+.nameInput::placeholder{color:#333}
 /* ゲームエリア */
 #gameArea{display:none}
 #topbar{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;margin-bottom:8px}
@@ -144,42 +159,81 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
   </div>
 
   <!-- Step2: ルーム操作（ロール選択後に表示） -->
-  <div id="stepRoom" style="display:none;flex-direction:column;align-items:center;gap:14px">
-    <h1 style="font-size:22px;color:#f5d04a;letter-spacing:4px">⚔ DUNGEON VS</h1>
-    <div id="roleDisplay" style="font-size:13px;color:#888;letter-spacing:1px"></div>
+  <div id="stepRoom" style="display:none;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:340px">
+    <h1 style="font-size:20px;color:#f5d04a;letter-spacing:4px">⚔ DUNGEON VS</h1>
+    <div id="roleDisplay" style="font-size:12px;color:#888;letter-spacing:1px"></div>
 
-    <!-- 新規ルーム作成 -->
-    <div class="lobbyBox" id="createBox">
-      <h2 id="createTitle" style="margin-bottom:4px"></h2>
-      <p style="font-size:10px;color:#555">新しくルームを作って相手を待つ</p>
-      <button class="lbtn" id="createBtn" style="margin-top:4px">ルームを作成する</button>
-      <!-- 待機表示 -->
-      <div id="waitArea" style="display:none">
-        <div id="roomDisplay" style="font-size:24px;color:#f5d04a;letter-spacing:6px;text-align:center;padding:8px;background:#0a0a14;border-radius:5px;border:1px solid #3a3a2a;margin:6px 0"></div>
-        <div style="font-size:10px;color:#666;text-align:center;margin-bottom:6px">↑ このIDを相手に伝えてください</div>
-        <!-- マッチング待機アニメーション -->
-        <div id="matchingArea" style="background:#0a0a14;border-radius:6px;padding:10px;text-align:center">
-          <div id="matchingDots" style="font-size:13px;color:#f5d04a;letter-spacing:2px">相手の参加を待っています</div>
-          <div style="display:flex;justify-content:center;gap:6px;margin-top:8px">
-            <div class="playerSlot" id="slot1"></div>
-            <div style="font-size:18px;color:#333;align-self:center">VS</div>
-            <div class="playerSlot" id="slot2"></div>
+    <!-- タブ -->
+    <div id="tabLobby">
+      <div class="ltab on" id="ltabPublic"  onclick="switchLobbyTab('public')">🌐 公開マッチング</div>
+      <div class="ltab"    id="ltabPrivate" onclick="switchLobbyTab('private')">🔒 プライベート</div>
+    </div>
+
+    <!-- 公開マッチングタブ -->
+    <div id="panelPublic" style="width:100%">
+      <div class="lobbyBox" style="width:100%;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2 id="publicCreateTitle" style="font-size:12px"></h2>
+          <input class="nameInput" id="hostNameInput" placeholder="あなたの名前（任意）" maxlength="12" style="width:130px">
+        </div>
+        <button class="lbtn" id="publicCreateBtn">公開ルームを作成する</button>
+        <!-- 待機表示（公開） -->
+        <div id="waitAreaPublic" style="display:none">
+          <div id="matchingArea" style="background:#0a0a14;border-radius:6px;padding:10px;text-align:center">
+            <div id="matchingDots" style="font-size:12px;color:#f5d04a;letter-spacing:2px">相手の参加を待っています...</div>
+            <div style="display:flex;justify-content:center;gap:6px;margin-top:8px">
+              <div class="playerSlot" id="slot1"></div>
+              <div style="font-size:16px;color:#333;align-self:center">VS</div>
+              <div class="playerSlot" id="slot2"></div>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 公開ルーム一覧 -->
+      <div class="lobbyBox" style="width:100%;margin-top:0;gap:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2 style="font-size:12px;color:#888">待機中のルーム</h2>
+          <span style="font-size:10px;color:#444" id="roomCount">0件</span>
+        </div>
+        <div id="publicRoomList">
+          <div class="noRooms">現在待機中のルームはありません</div>
         </div>
       </div>
     </div>
 
-    <!-- 既存ルームに参加 -->
-    <div class="lobbyBox" id="joinBox">
-      <h2 id="joinTitle" style="margin-bottom:4px"></h2>
-      <p style="font-size:10px;color:#555">相手から聞いたIDを入力して参加する</p>
-      <input id="roomInput" type="text" placeholder="ルームID（例: ABC123）" maxlength="6"
-        style="background:#0a0a14;border:1px solid #3a3a5a;border-radius:5px;padding:8px;font-size:14px;color:#ddd;font-family:'Courier New',monospace;letter-spacing:3px;text-align:center;width:100%;margin-top:4px">
-      <button class="lbtn" id="joinBtn" style="margin-top:6px">ルームに参加する</button>
+    <!-- プライベートタブ -->
+    <div id="panelPrivate" style="width:100%;display:none">
+      <!-- 新規ルーム作成 -->
+      <div class="lobbyBox" style="width:100%;gap:6px">
+        <h2 id="createTitle" style="font-size:12px"></h2>
+        <p style="font-size:10px;color:#555">IDを相手に伝えてプレイ</p>
+        <button class="lbtn" id="createBtn">ルームを作成する</button>
+        <!-- 待機表示（プライベート） -->
+        <div id="waitArea" style="display:none">
+          <div id="roomDisplay" style="font-size:22px;color:#f5d04a;letter-spacing:6px;text-align:center;padding:8px;background:#0a0a14;border-radius:5px;border:1px solid #3a3a2a;margin:4px 0"></div>
+          <div style="font-size:10px;color:#666;text-align:center;margin-bottom:4px">↑ このIDを相手に伝えてください</div>
+          <div style="background:#0a0a14;border-radius:5px;padding:8px;text-align:center">
+            <div style="font-size:11px;color:#f5d04a">相手の参加を待っています...</div>
+            <div style="display:flex;justify-content:center;gap:6px;margin-top:6px">
+              <div class="playerSlot" id="slot1p"></div>
+              <div style="font-size:16px;color:#333;align-self:center">VS</div>
+              <div class="playerSlot" id="slot2p"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 参加 -->
+      <div class="lobbyBox" style="width:100%;margin-top:0;gap:6px">
+        <h2 id="joinTitle" style="font-size:12px"></h2>
+        <input id="roomInput" type="text" placeholder="ルームID（例: ABC123）" maxlength="6"
+          style="background:#0a0a14;border:1px solid #3a3a5a;border-radius:5px;padding:7px;font-size:13px;color:#ddd;font-family:'Courier New',monospace;letter-spacing:3px;text-align:center;width:100%">
+        <button class="lbtn" id="joinBtn">ルームに参加する</button>
+      </div>
     </div>
 
     <button onclick="backToRole()" style="background:transparent;border:none;color:#444;font-size:11px;cursor:pointer;font-family:'Courier New',monospace">← ロール選択に戻る</button>
-    <div id="lobbyMsg2" style="font-size:11px;color:#e07070;text-align:center;min-height:16px"></div>
+    <div id="lobbyMsg2" style="font-size:11px;color:#e07070;text-align:center;min-height:14px"></div>
   </div>
 </div>
 <!-- ゲームエリア -->
@@ -276,6 +330,15 @@ function connectWS(onReady){
 function sendWS(msg){if(socket&&socket.readyState===1)socket.send(JSON.stringify(msg));}
 // ===== ロビー制御 =====
 let selectedRole=null;
+let currentLobbyTab='public';
+
+function switchLobbyTab(tab){
+  currentLobbyTab=tab;
+  document.getElementById('ltabPublic').className='ltab'+(tab==='public'?' on':'');
+  document.getElementById('ltabPrivate').className='ltab'+(tab==='private'?' on':'');
+  document.getElementById('panelPublic').style.display=tab==='public'?'block':'none';
+  document.getElementById('panelPrivate').style.display=tab==='private'?'block':'none';
+}
 
 function setLobbyMsg(t){
   const el=document.getElementById('lobbyMsg')||document.getElementById('lobbyMsg2');
@@ -318,6 +381,10 @@ function selectRole(role){
   }
   // スロット表示
   updateSlots(role,false);
+  // 接続して公開ルーム一覧を取得
+  if(!socket||socket.readyState!==1){
+    connectWS(()=>{});
+  }
 }
 
 function backToRole(){
@@ -329,10 +396,11 @@ function backToRole(){
   if(socket){socket.close();socket=null;}
 }
 
-function updateSlots(role,opponentJoined){
+function updateSlots(role,opponentJoined,s1id='slot1',s2id='slot2'){
   const isHero=role==='hero';
-  const s1=document.getElementById('slot1');
-  const s2=document.getElementById('slot2');
+  const s1=document.getElementById(s1id);
+  const s2=document.getElementById(s2id);
+  if(!s1||!s2)return;
   // slot1 = 自分、slot2 = 相手
   s1.innerHTML=`<div>${isHero?'⚔':'👿'}</div><div class="slotLabel">${isHero?'勇者（あなた）':'魔王（あなた）'}</div>`;
   s1.className='playerSlot filled';
@@ -348,18 +416,71 @@ function updateSlots(role,opponentJoined){
 document.getElementById('selectHero').onclick=()=>selectRole('hero');
 document.getElementById('selectDemon').onclick=()=>selectRole('demon');
 
+function renderPublicRooms(rooms){
+  const list=document.getElementById('publicRoomList');
+  const count=document.getElementById('roomCount');
+  if(!list)return;
+  count.textContent=rooms.length+'件';
+  if(rooms.length===0){
+    list.innerHTML='<div class="noRooms">現在待機中のルームはありません</div>';
+    return;
+  }
+  list.innerHTML='';
+  rooms.forEach(r=>{
+    // 自分が作ったルームは表示しない
+    if(r.roomId===myRoomId)return;
+    const waitRole=r.waitingRole; // 待っている側のロール
+    // 自分と逆のロールが待っているルームのみ参加可能
+    const canJoin=selectedRole&&selectedRole!==waitRole;
+    const div=document.createElement('div');
+    div.className='roomRow';
+    div.innerHTML=`
+      <span class="rhost">👤 ${r.hostName}</span>
+      <span class="rrole ${waitRole}">${waitRole==='hero'?'⚔ 勇者待ち':'👿 魔王待ち'}</span>
+      <span class="rjoin">${canJoin?'参加 →':'－'}</span>`;
+    if(canJoin){
+      div.onclick=()=>joinPublicRoom(r.roomId);
+    }else{
+      div.style.opacity='0.4';div.style.cursor='default';
+    }
+    list.appendChild(div);
+  });
+}
+
+function joinPublicRoom(roomId){
+  if(!selectedRole){document.getElementById('lobbyMsg2').textContent='ロールを選んでください';return;}
+  document.getElementById('lobbyMsg2').textContent='参加中...';
+  if(socket&&socket.readyState===1){
+    sendWS({type:'join_room',roomId,role:selectedRole});
+  }else{
+    connectWS(()=>sendWS({type:'join_room',roomId,role:selectedRole}));
+  }
+}
+
 function onServerMessage(msg){
+  if(msg.type==='public_rooms'){
+    renderPublicRooms(msg.rooms);
+    return;
+  }
   if(msg.type==='room_created'){
     myRoomId=msg.roomId;
-    // 待機エリアを表示
-    document.getElementById('waitArea').style.display='block';
-    document.getElementById('createBtn').style.display='none';
-    document.getElementById('roomDisplay').textContent=msg.roomId;
-    updateSlots(selectedRole,false);
+    if(msg.public){
+      // 公開：公開タブの待機エリアを表示
+      document.getElementById('waitAreaPublic').style.display='block';
+      document.getElementById('publicCreateBtn').style.display='none';
+      updateSlots(selectedRole,false,'slot1','slot2');
+    }else{
+      // プライベート：IDを表示
+      document.getElementById('waitArea').style.display='block';
+      document.getElementById('createBtn').style.display='none';
+      document.getElementById('roomDisplay').textContent=msg.roomId;
+      updateSlots(selectedRole,false,'slot1p','slot2p');
+    }
     document.getElementById('lobbyMsg2').textContent='';
   }else if(msg.type==='game_start'){
     // 相手が参加した！スロットを埋めてからゲームへ
-    updateSlots(selectedRole,true);
+    updateSlots(selectedRole,true,'slot1','slot2');
+    updateSlots(selectedRole,true,'slot1p','slot2p');
     document.getElementById('matchingDots').textContent='マッチング成立！';
     document.getElementById('matchingDots').style.animation='none';
     document.getElementById('matchingDots').style.color='#5dbb8a';
@@ -379,10 +500,21 @@ function onServerMessage(msg){
   }
 }
 
+// プライベート作成
 document.getElementById('createBtn').onclick=()=>{
   if(!selectedRole)return;
   document.getElementById('lobbyMsg2').textContent='接続中...';
-  connectWS(()=>sendWS({type:'create_room',role:selectedRole}));
+  const send=()=>sendWS({type:'create_room',role:selectedRole,public:false});
+  if(socket&&socket.readyState===1)send();else connectWS(send);
+};
+
+// 公開ルーム作成
+document.getElementById('publicCreateBtn').onclick=()=>{
+  if(!selectedRole)return;
+  const hostName=document.getElementById('hostNameInput').value.trim()||'匿名';
+  document.getElementById('lobbyMsg2').textContent='接続中...';
+  const send=()=>sendWS({type:'create_room',role:selectedRole,public:true,hostName});
+  if(socket&&socket.readyState===1)send();else connectWS(send);
 };
 document.getElementById('joinBtn').onclick=()=>{
   if(!selectedRole)return;

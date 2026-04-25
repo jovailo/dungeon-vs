@@ -27,31 +27,60 @@ function broadcast(room, msg) {
   if (room.demon && room.demon.readyState === 1) room.demon.send(data);
 }
 
+// ===== 公開ルーム一覧を全クライアントに配信 =====
+function broadcastPublicRooms() {
+  const list = Object.entries(rooms)
+    .filter(([id, room]) => room.public && (!room.hero || !room.demon))
+    .map(([id, room]) => ({
+      roomId: id,
+      waitingRole: room.hero ? 'hero' : 'demon', // 待っている側のロール
+      hostName: room.hostName || '匿名',
+    }));
+  const msg = JSON.stringify({ type: 'public_rooms', rooms: list });
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(msg);
+  });
+}
+
 // ===== WebSocket 接続 =====
 wss.on('connection', (ws) => {
   console.log('クライアント接続');
   ws.roomId = null;
   ws.role   = null;
+  // 接続時に現在の公開ルーム一覧を送る
+  const list = Object.entries(rooms)
+    .filter(([id, room]) => room.public && (!room.hero || !room.demon))
+    .map(([id, room]) => ({
+      roomId: id,
+      waitingRole: room.hero ? 'hero' : 'demon',
+      hostName: room.hostName || '匿名',
+    }));
+  ws.send(JSON.stringify({ type: 'public_rooms', rooms: list }));
 
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
 
-    // ---- ルーム作成（ロール指定あり） ----
+    // ---- ルーム作成（ロール指定あり・公開フラグあり） ----
     if (msg.type === 'create_room') {
-      const role = msg.role === 'demon' ? 'demon' : 'hero';
+      const role     = msg.role === 'demon' ? 'demon' : 'hero';
+      const isPublic = msg.public === true;
+      const hostName = (msg.hostName || '').slice(0, 12) || '匿名';
       let id;
       do { id = makeRoomId(); } while (rooms[id]);
-      // ロールに応じてスロットを設定
       rooms[id] = {
-        hero:  role === 'hero'  ? ws : null,
-        demon: role === 'demon' ? ws : null,
-        state: null
+        hero:     role === 'hero'  ? ws : null,
+        demon:    role === 'demon' ? ws : null,
+        state:    null,
+        public:   isPublic,
+        hostName: hostName,
       };
       ws.roomId = id;
       ws.role   = role;
-      ws.send(JSON.stringify({ type: 'room_created', roomId: id, role }));
-      console.log(`ルーム作成: ${id} (${role})`);
+      ws.send(JSON.stringify({ type: 'room_created', roomId: id, role, public: isPublic }));
+      console.log(`ルーム作成: ${id} (${role}) public:${isPublic}`);
+      // 公開ルームなら全員に通知
+      if (isPublic) broadcastPublicRooms();
     }
 
     // ---- ルーム参加（空きスロットに入る） ----
@@ -74,9 +103,11 @@ wss.on('connection', (ws) => {
       ws.roomId = id;
       ws.role   = joinRole;
       console.log(`ルーム参加: ${id} (${joinRole})`);
-      // 両者にゲーム開始を通知（それぞれのロールを伝える）
+      // 両者にゲーム開始を通知
       room.hero.send(JSON.stringify({ type: 'game_start', yourRole: 'hero' }));
       room.demon.send(JSON.stringify({ type: 'game_start', yourRole: 'demon' }));
+      // 公開ルームなら一覧を更新（満員になったので消える）
+      if (room.public) broadcastPublicRooms();
     }
 
     // ---- ゲームの操作をもう一方に転送 ----
@@ -108,8 +139,11 @@ wss.on('connection', (ws) => {
       other.send(JSON.stringify({ type: 'opponent_disconnected' }));
     }
     // ルームを削除
+    const wasPublic = room.public;
     delete rooms[ws.roomId];
     console.log(`ルーム削除: ${ws.roomId}`);
+    // 公開ルームだったら一覧を更新
+    if (wasPublic) broadcastPublicRooms();
   });
 });
 

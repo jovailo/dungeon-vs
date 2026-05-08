@@ -320,12 +320,22 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
 const WS_URL=`${location.protocol==='https:'?'wss':'ws'}://${location.host}`;
 let socket=null,myRole=null,myRoomId=null;
 
-function connectWS(onReady){
+function connectWS(onReady,_retry){
+  const attempt=_retry||1;
+  const maxRetry=4;
+  setLobbyMsg(attempt===1?'':'接続中... ('+attempt+'/'+maxRetry+')');
   socket=new WebSocket(WS_URL);
-  socket.onopen=()=>{console.log('WS接続OK');if(onReady)onReady();};
+  socket.onopen=()=>{console.log('WS接続OK');setLobbyMsg('');if(onReady)onReady();};
   socket.onmessage=(e)=>onServerMessage(JSON.parse(e.data));
-  socket.onclose=()=>setLobbyMsg('サーバーとの接続が切れました');
-  socket.onerror=()=>setLobbyMsg('接続エラー。サーバーが起動しているか確認してください');
+  socket.onclose=()=>{
+    if(attempt<maxRetry){
+      setLobbyMsg('接続中... ('+attempt+'/'+maxRetry+')');
+      setTimeout(()=>connectWS(onReady,attempt+1),3000);
+    }else{
+      setLobbyMsg('接続できませんでした。ページを再読み込みしてください');
+    }
+  };
+  socket.onerror=()=>{};
 }
 function sendWS(msg){if(socket&&socket.readyState===1)socket.send(JSON.stringify(msg));}
 // ===== ロビー制御 =====

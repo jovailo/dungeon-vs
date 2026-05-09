@@ -319,25 +319,43 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
 // 本番(https)はwss://、ローカル(http)はws:// を自動で選ぶ
 const WS_URL=`${location.protocol==='https:'?'wss':'ws'}://${location.host}`;
 let socket=null,myRole=null,myRoomId=null;
+let wsRetryTimer=null; // リトライタイマーID（競合防止用）
+let wsPendingReady=null; // 接続確立後に実行するコールバック
 
-function connectWS(onReady,_retry){
-  const attempt=_retry||1;
-  const maxRetry=4;
-  setLobbyMsg(attempt===1?'':'接続中... ('+attempt+'/'+maxRetry+')');
-  socket=new WebSocket(WS_URL);
-  socket.onopen=()=>{console.log('WS接続OK');setLobbyMsg('');if(onReady)onReady();};
-  socket.onmessage=(e)=>onServerMessage(JSON.parse(e.data));
-  socket.onclose=()=>{
-    if(attempt<maxRetry){
-      setLobbyMsg('接続中... ('+attempt+'/'+maxRetry+')');
-      setTimeout(()=>connectWS(onReady,attempt+1),3000);
-    }else{
-      setLobbyMsg('接続できませんでした。ページを再読み込みしてください');
-    }
-  };
-  socket.onerror=()=>{};
+function connectWS(onReady){
+  // 既存のリトライをキャンセル
+  if(wsRetryTimer){clearTimeout(wsRetryTimer);wsRetryTimer=null;}
+  // 保留コールバックを更新
+  if(onReady)wsPendingReady=onReady;
+  // 接続中なら新規作成しない（既存の接続を待つ）
+  if(socket&&socket.readyState===0)return;
+  // 接続済みなら即コールバック実行
+  if(socket&&socket.readyState===1){if(wsPendingReady){wsPendingReady();wsPendingReady=null;}return;}
+
+  function attempt(n){
+    const maxRetry=5;
+    setLobbyMsg(n===1?'サーバーに接続中...':'再接続中... ('+n+'/'+maxRetry+')');
+    socket=new WebSocket(WS_URL);
+    socket.onopen=()=>{
+      console.log('WS接続OK');
+      setLobbyMsg('');
+      if(wsPendingReady){wsPendingReady();wsPendingReady=null;}
+    };
+    socket.onmessage=(e)=>onServerMessage(JSON.parse(e.data));
+    socket.onclose=()=>{
+      if(n<maxRetry){
+        wsRetryTimer=setTimeout(()=>attempt(n+1),2000);
+      }else{
+        setLobbyMsg('接続できませんでした。ページを再読み込みしてください');
+      }
+    };
+    socket.onerror=()=>{};
+  }
+  attempt(1);
 }
 function sendWS(msg){if(socket&&socket.readyState===1)socket.send(JSON.stringify(msg));}
+// ページ読み込み時にWS接続を開始（ロール選択前にRenderを起動させる）
+connectWS();
 // ===== ロビー制御 =====
 let selectedRole=null;
 let currentLobbyTab='public';
@@ -391,9 +409,9 @@ function selectRole(role){
   }
   // スロット表示
   updateSlots(role,false);
-  // 接続して公開ルーム一覧を取得
-  if(!socket||socket.readyState!==1){
-    connectWS(()=>{});
+  // 未接続・切断済みの場合は再接続
+  if(!socket||socket.readyState===3){
+    connectWS();
   }
 }
 
@@ -404,6 +422,8 @@ function backToRole(){
   document.getElementById('waitArea').style.display='none';
   document.getElementById('lobbyMsg2').textContent='';
   if(socket){socket.close();socket=null;}
+  // ロール選択画面に戻ったら再接続して公開ルーム一覧を更新
+  connectWS();
 }
 
 function updateSlots(role,opponentJoined,s1id='slot1',s2id='slot2'){
@@ -513,24 +533,19 @@ function onServerMessage(msg){
 // プライベート作成
 document.getElementById('createBtn').onclick=()=>{
   if(!selectedRole)return;
-  document.getElementById('lobbyMsg2').textContent='接続中...';
-  const send=()=>sendWS({type:'create_room',role:selectedRole,public:false});
-  if(socket&&socket.readyState===1)send();else connectWS(send);
+  connectWS(()=>sendWS({type:'create_room',role:selectedRole,public:false}));
 };
 
 // 公開ルーム作成
 document.getElementById('publicCreateBtn').onclick=()=>{
   if(!selectedRole)return;
   const hostName=document.getElementById('hostNameInput').value.trim()||'匿名';
-  document.getElementById('lobbyMsg2').textContent='接続中...';
-  const send=()=>sendWS({type:'create_room',role:selectedRole,public:true,hostName});
-  if(socket&&socket.readyState===1)send();else connectWS(send);
+  connectWS(()=>sendWS({type:'create_room',role:selectedRole,public:true,hostName}));
 };
 document.getElementById('joinBtn').onclick=()=>{
   if(!selectedRole)return;
   const id=document.getElementById('roomInput').value.trim().toUpperCase();
   if(id.length<4){document.getElementById('lobbyMsg2').textContent='IDを入力してください';return;}
-  document.getElementById('lobbyMsg2').textContent='接続中...';
   connectWS(()=>sendWS({type:'join_room',roomId:id,role:selectedRole}));
 };
 

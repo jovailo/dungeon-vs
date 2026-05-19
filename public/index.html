@@ -177,6 +177,7 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
           <input class="nameInput" id="hostNameInput" placeholder="あなたの名前（任意）" maxlength="12" style="width:130px">
         </div>
         <button class="lbtn" id="publicCreateBtn">公開ルームを作成する</button>
+        <button class="lbtn" id="aiGameBtn" style="background:#0d1f0d;border-color:#2a4a2a;color:#7ec87e">🤖 AI対戦（一人プレイ）</button>
         <!-- 待機表示（公開） -->
         <div id="waitAreaPublic" style="display:none">
           <div id="matchingArea" style="background:#0a0a14;border-radius:6px;padding:10px;text-align:center">
@@ -319,6 +320,7 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
 // 本番(https)はwss://、ローカル(http)はws:// を自動で選ぶ
 const WS_URL=`${location.protocol==='https:'?'wss':'ws'}://${location.host}`;
 let socket=null,myRole=null,myRoomId=null;
+let vsAI=false;
 let wsRetryTimer=null; // リトライタイマーID（競合防止用）
 let wsPendingReady=null; // 接続確立後に実行するコールバック
 
@@ -542,6 +544,10 @@ document.getElementById('publicCreateBtn').onclick=()=>{
   const hostName=document.getElementById('hostNameInput').value.trim()||'匿名';
   connectWS(()=>sendWS({type:'create_room',role:selectedRole,public:true,hostName}));
 };
+document.getElementById('aiGameBtn').onclick=()=>{
+  if(!selectedRole){document.getElementById('lobbyMsg2').textContent='ロールを選んでください';return;}
+  startAIGame();
+};
 document.getElementById('joinBtn').onclick=()=>{
   if(!selectedRole)return;
   const id=document.getElementById('roomInput').value.trim().toUpperCase();
@@ -634,6 +640,15 @@ function dist(a,b){return Math.abs(a.x-b.x)+Math.abs(a.y-b.y);}
 // ================================================================
 // ゲーム開始
 // ================================================================
+function startAIGame(){
+  vsAI=true;
+  myRole=selectedRole;
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('gameArea').style.display='block';
+  document.getElementById(myRole==='hero'?'you1':'you2').style.display='inline';
+  initGame();
+}
+
 function startGame(){
   document.getElementById('lobby').style.display='none';
   document.getElementById('gameArea').style.display='block';
@@ -654,7 +669,8 @@ function initGame(){
   loadFloor();
   render();
   log('ゲーム開始！B'+MAX_FLOOR+'Fのボスを倒せ！','b');
-  setTimeout(()=>syncState(),500);
+  if(!vsAI){setTimeout(()=>syncState(),500);}
+  else if(myRole==='demon'){setTimeout(()=>heroAI(),1200);}
 }
 
 function loadFloor(){
@@ -795,7 +811,7 @@ function bfsNextStep(ex,ey,tx,ty,m,others){
 // 状態同期
 // ================================================================
 function getState(){return{gmap,hero,enemies,items,traps,fl,done,staX,staY,turn,demonPtLeft,turnCount,demonSkills,deadEnemies};}
-function syncState(){sendWS({type:'state_sync',state:getState()});}
+function syncState(){if(!vsAI)sendWS({type:'state_sync',state:getState()});}
 function applyStateSync(state){
   gmap=state.gmap;hero=state.hero;enemies=state.enemies;items=state.items;
   traps=state.traps;fl=state.fl;done=state.done;staX=state.staX;staY=state.staY;
@@ -1229,9 +1245,11 @@ function endHeroTurn(){
     turn='hero';render();syncState();
     log('（魔王PT0のため自動スキップ）','o');
     log('⚔ 勇者のターン','b');
+    if(vsAI&&myRole==='demon')setTimeout(()=>heroAI(),700);
   }else{
     turn='demon';selectedCard=-1;render();syncState();
     log('👿 魔王のターン','p');
+    if(vsAI&&myRole==='hero')setTimeout(()=>demonAI(),700);
   }
 }
 
@@ -1322,7 +1340,7 @@ function deploySelected(){
     log('👿 '+c.name+'設置！（残'+demonPtLeft+'pt）','p');
   }
   selectedCard=null;render();
-  sendWS({type:'demon_action',state:getState()});
+  if(!vsAI)sendWS({type:'demon_action',state:getState()});
 }
 
 function useDemonSkill(sk){
@@ -1373,18 +1391,166 @@ function useDemonSkill(sk){
     log('🧲 引き寄せ！'+moved+'体が接近した！','p');
   }
   sk.cd=sk.baseCd;render();
-  // PT0の割り込み発動は勇者ターンのまま継続（ターン消費なし）
-  const msg = demonPtLeft===0
-    ? {type:'state_sync', state:getState()}      // PT0：状態同期のみ
-    : {type:'demon_action', state:getState()};   // PT残：ターン交代
-  sendWS(msg);
+  if(!vsAI){
+    // PT0の割り込み発動は勇者ターンのまま継続（ターン消費なし）
+    const msg = demonPtLeft===0
+      ? {type:'state_sync', state:getState()}      // PT0：状態同期のみ
+      : {type:'demon_action', state:getState()};   // PT残：ターン交代
+    sendWS(msg);
+  }
 }
 
 function endDemonTurn(){
-  if(done||turn!=='demon'||myRole!=='demon')return;
+  if(done||turn!=='demon')return;
+  if(!vsAI&&myRole!=='demon')return;
   turn='hero';selectedCard=null;render();
-  sendWS({type:'demon_action',state:getState()});
+  if(!vsAI)sendWS({type:'demon_action',state:getState()});
   log('⚔ 勇者のターン','b');
+  if(vsAI&&myRole==='demon')setTimeout(()=>heroAI(),700);
+}
+
+// ================================================================
+// 魔王AI（vsAIモード）
+// ================================================================
+function demonAI(){
+  if(done||turn!=='demon')return;
+  const allCards=[...MON_CARDS,...SPECIAL_MON_CARDS,...TRAP_CARDS];
+  const floorAllowed=FLOOR_ENEMY_TABLE[Math.min(fl,5)];
+  const affordable=allCards.filter(c=>c.cost<=demonPtLeft);
+  if(affordable.length>0&&demonPtLeft>0){
+    const monCards=affordable.filter(c=>c.stype&&floorAllowed.includes(c.stype));
+    const pick=(monCards.length>0&&rng(0,2)>0)?monCards[rng(0,monCards.length-1)]:affordable[rng(0,affordable.length-1)];
+    const tiles=getPlaceableTiles();
+    if(tiles.length>0){
+      tiles.sort((a,b)=>dist(a,hero)-dist(b,hero));
+      const top=tiles.slice(0,Math.max(1,Math.floor(tiles.length/2)));
+      const pos=top[rng(0,top.length-1)];
+      demonPtLeft-=pick.cost;
+      if(pick.stype){
+        const hp=pick.hp+fl*2;
+        enemies.push({x:pos.x,y:pos.y,stype:pick.stype,name:pick.name,hp,maxHp:hp,atk:pick.atk+fl,def:pick.def,exp:pick.exp,gold:pick.gold});
+        log('👿 [AI] '+pick.name+'召喚！（残'+demonPtLeft+'pt）','p');
+      }else{
+        traps.push({x:pos.x,y:pos.y,trapType:pick.trapType,triggered:false});
+        log('👿 [AI] '+pick.name+'設置！（残'+demonPtLeft+'pt）','p');
+      }
+      render();
+      if(demonPtLeft>0){setTimeout(()=>demonAI(),500);return;}
+    }
+  }
+  // スキル使用を試みてからターン終了
+  demonSkillAI();
+  setTimeout(()=>{
+    if(done||turn!=='demon')return;
+    turn='hero';selectedCard=null;render();
+    log('⚔ 勇者のターン','b');
+  },500);
+}
+
+function demonSkillAI(){
+  if(!demonSkills)return;
+  const usable=demonSkills.filter(sk=>sk.cd===0);
+  if(!usable.length||rng(0,2)!==0)return;
+  const sk=usable[rng(0,usable.length-1)];
+  if(sk.type==='quake'){
+    enemies.forEach(e=>{e.atk+=2;});
+    log('🌋 [AI] 地震！全モンスターATK+2！','p');
+  }else if(sk.type==='curse'){
+    hero.atk_debuff=(hero.atk_debuff||0)+1;hero._weakTimer=(hero._weakTimer||0)+3;
+    log('💜 [AI] 呪い！勇者ATK-1（3T）','p');
+  }else if(sk.type==='revive'){
+    if(!deadEnemies.length)return;
+    const base=deadEnemies[deadEnemies.length-1];
+    const tiles=getPlaceableTiles();if(!tiles.length)return;
+    const pos=tiles[rng(0,tiles.length-1)];
+    const hp=Math.ceil(base.maxHp/2);
+    enemies.push({...base,x:pos.x,y:pos.y,hp,maxHp:hp});
+    deadEnemies.pop();
+    log('💀 [AI] '+base.name+'復活！','p');
+  }else if(sk.type==='veil'){
+    traps.forEach(t=>{t.triggered=false;});
+    log('🌫 [AI] 隠蔽！全罠リセット！','p');
+  }else if(sk.type==='darkness'){
+    hero.darkness=2;
+    log('🌑 [AI] 暗闇！','p');
+  }else if(sk.type==='seal'){
+    hero.sealedStairs=2;
+    log('🔒 [AI] 封鎖！階段2T封印！','p');
+  }else if(sk.type==='plunder'){
+    const stolen=Math.floor((hero.gold||0)/3);
+    hero.gold=Math.max(0,(hero.gold||0)-stolen);
+    log('💰 [AI] 略奪！GOLD-'+stolen,'p');
+  }else if(sk.type==='magnet'){
+    const tiles=floorTiles(gmap,[]).filter(t=>
+      dist(t,hero)>=2&&dist(t,hero)<=4&&
+      !enemies.find(en=>en.x===t.x&&en.y===t.y)&&
+      !(hero.x===t.x&&hero.y===t.y));
+    let moved=0;
+    enemies.forEach(e=>{
+      if(e.isBoss||dist(e,hero)<5)return;
+      if(tiles.length){const p=tiles[rng(0,tiles.length-1)];e.x=p.x;e.y=p.y;moved++;}
+    });
+    log('🧲 [AI] 引き寄せ！'+moved+'体接近！','p');
+  }
+  sk.cd=sk.baseCd;render();
+}
+
+// ================================================================
+// 勇者AI（vsAIモード・魔王プレイ時）
+// ================================================================
+function heroAI(){
+  if(done||turn!=='hero')return;
+  if(hero.skip>0){hero.skip--;log('足止め：AI勇者待機','o');endHeroTurn();return;}
+  // HP危機 → バリア
+  const barrierSk=hero.skills.find(sk=>sk.id==='barrier'&&sk.cd===0);
+  if(barrierSk&&hero.hp<=hero.maxHp*0.35){
+    hero.barrier=2;barrierSk.cd=barrierSk.baseCd;
+    log('🛡 [AI勇者] バリア！','g');endHeroTurn();return;
+  }
+  // 罠が近くにある → 見切り
+  const senseSk=hero.skills.find(sk=>sk.id==='sense'&&sk.cd===0);
+  if(senseSk&&traps.some(t=>!t.triggered&&dist(t,hero)<5)){
+    hero.sense=3;senseSk.cd=senseSk.baseCd;
+    log('👁 [AI勇者] 見切り！','g');endHeroTurn();return;
+  }
+  // 隣接敵を攻撃
+  const adjIdx=enemies.findIndex(e=>(Math.abs(e.x-hero.x)+Math.abs(e.y-hero.y))===1);
+  if(adjIdx>=0){heroAttack(adjIdx);return;}
+  // 目標: HP<60%かつ回復アイテムあり → アイテム優先、それ以外は階段
+  let tx=staX,ty=staY;
+  if(hero.hp<hero.maxHp*0.6&&items.length){
+    const healItems=items.filter(i=>i.eff==='heal'||i.eff==='food'||i.eff==='cure');
+    if(healItems.length){
+      const nearest=healItems.reduce((a,b)=>dist(a,hero)<dist(b,hero)?a:b);
+      tx=nearest.x;ty=nearest.y;
+    }
+  }
+  // B5Fでボスが生存中は階段ではなくボスを狙う
+  if(fl===MAX_FLOOR&&enemies.some(e=>e.isBoss)){
+    const boss=enemies.find(e=>e.isBoss);
+    if(boss){tx=boss.x;ty=boss.y;}
+  }
+  const step=bfsNextStep(hero.x,hero.y,tx,ty,gmap,[]);
+  if(step){heroMoveAI(step.dx,step.dy);}
+  else{log('[AI勇者] 待機','');endHeroTurn();}
+}
+
+function heroMoveAI(dx,dy){
+  const nx=hero.x+dx,ny=hero.y+dy;
+  if(nx<0||nx>=COLS||ny<0||ny>=ROWS||gmap[ny][nx]===0){endHeroTurn();return;}
+  const ei=enemies.findIndex(e=>e.x===nx&&e.y===ny);
+  if(ei!==-1){heroAttack(ei);return;}
+  hero.x=nx;hero.y=ny;
+  checkTrap(nx,ny);if(done)return;
+  const ii=items.findIndex(i=>i.x===nx&&i.y===ny);
+  if(ii!==-1)pickUp(ii);
+  if(nx===staX&&ny===staY){
+    if(fl===MAX_FLOOR&&enemies.some(e=>e.isBoss)){endHeroTurn();return;}
+    if(hero.sealedStairs>0){log('🔒 封鎖中（AI待機）','r');endHeroTurn();return;}
+    log('▼ 階段！B'+(fl+1)+'Fへ','g');
+    fl++;demonPtLeft=demonPtForFloor(fl);loadFloor();endHeroTurn();return;
+  }
+  endHeroTurn();
 }
 
 // ================================================================
@@ -1393,7 +1559,7 @@ function endDemonTurn(){
 function endGame(title,msg,color){
   done=true;
   showOverlay(title,msg,color);
-  sendWS({type:'state_sync',state:{...getState(),endTitle:title,endMsg:msg,endColor:color}});
+  if(!vsAI)sendWS({type:'state_sync',state:{...getState(),endTitle:title,endMsg:msg,endColor:color}});
 }
 
 function showOverlay(title,msg,color){

@@ -562,7 +562,7 @@ const CV=document.getElementById('c'),ctx=CV.getContext('2d');
 const CW=420,CH=300,TS=20,COLS=21,ROWS=15;
 const MAX_FLOOR=5;
 
-function demonPtForFloor(f){return Math.min(6+(f-1)*2,20);}
+function demonPtForFloor(f){return Math.min(4+(f-1)*2,20);}
 
 // フロアごとの出現モンスター（魔王が召喚できる種類も同じテーブル）
 const FLOOR_ENEMY_TABLE={
@@ -661,7 +661,7 @@ function initGame(){
   demonPtLeft=demonPtForFloor(1);selectedCard=-1;activeTab='mob';
   demonSkills=DEMON_SKILLS.map(s=>({...s}));
   deadEnemies=[];
-  hero={hp:25,maxHp:25,atk:4,def:1,lv:1,exp:0,gold:0,barrier:0,
+  hero={hp:30,maxHp:30,atk:5,def:2,lv:1,exp:0,gold:0,barrier:0,
         atk_debuff:0,skip:0,hunger:100,maxHunger:100,
         darkness:0,sealedStairs:0,sense:0,
         skills:HERO_SKILLS.map(s=>({...s}))};
@@ -689,16 +689,16 @@ function loadFloor(){
     const pos=randFloor(m,used);if(!pos)break;used.push(pos);
     const stype=table[rng(0,table.length-1)];
     const base=MON_CARDS.find(c=>c.stype===stype)||MON_CARDS[0];
-    const hp=base.hp+fl*2;
-    enemies.push({x:pos.x,y:pos.y,stype,name:base.name,hp,maxHp:hp,atk:base.atk+fl,def:base.def,exp:base.exp,gold:base.gold});
+    const hp=base.hp+fl;
+    enemies.push({x:pos.x,y:pos.y,stype,name:base.name,hp,maxHp:hp,atk:base.atk+Math.ceil(fl/2),def:base.def,exp:base.exp,gold:base.gold});
   }
   // B5F：ボス配置
   if(fl===MAX_FLOOR){
     const bpos=randFloor(m,used);
     if(bpos){
       used.push(bpos);
-      const bossHp=80+fl*5;
-      enemies.push({x:bpos.x,y:bpos.y,stype:'dragon',name:'魔王の使徒',hp:bossHp,maxHp:bossHp,atk:14,def:5,exp:50,gold:30,isBoss:true});
+      const bossHp=70+fl*3;
+      enemies.push({x:bpos.x,y:bpos.y,stype:'dragon',name:'魔王の使徒',hp:bossHp,maxHp:bossHp,atk:11,def:4,exp:50,gold:30,isBoss:true});
     }
   }
   // アイテム（食料追加）
@@ -1145,7 +1145,7 @@ function checkTrap(x,y){
   traps[ti].triggered=true;
   if(tr.trapType==='dmg'){
     if(hero.barrier>0){log('⚠ 罠！バリアで無効','p');return;}
-    hero.hp-=10;log('⚠ ダメージ罠！HP-10','r');
+    hero.hp-=7;log('⚠ ダメージ罠！HP-7','r');
     if(hero.hp<=0)endGame('魔王の勝利！','勇者が罠で力尽きた…','#d080f0');
   }else if(tr.trapType==='warp'){
     const pos=randFloor(gmap,[{x:hero.x,y:hero.y},{x:staX,y:staY}]);
@@ -1177,7 +1177,7 @@ function pickUp(ii){
 
 function lvUp(){
   if(hero.exp>=hero.lv*10){
-    hero.exp-=hero.lv*10;hero.lv++;hero.maxHp+=5;hero.hp=hero.maxHp;hero.atk++;
+    hero.exp-=hero.lv*10;hero.lv++;hero.maxHp+=7;hero.hp=hero.maxHp;hero.atk++;
     log('★ LV'+hero.lv+'! HP全回復','y');
   }
 }
@@ -1317,7 +1317,7 @@ function getPlaceableTiles(){
     !(hero.x===t.x&&hero.y===t.y)&&
     !(staX===t.x&&staY===t.y)&&
     !traps.find(tr=>tr.x===t.x&&tr.y===t.y)&&
-    dist(t,hero)>=3);
+    dist(t,hero)>=4);
 }
 
 function deploySelected(){
@@ -1332,8 +1332,8 @@ function deploySelected(){
   const pos=tiles[rng(0,tiles.length-1)];
   demonPtLeft-=c.cost;
   if(c.stype){
-    const hp=c.hp+fl*2;
-    enemies.push({x:pos.x,y:pos.y,stype:c.stype,name:c.name,hp,maxHp:hp,atk:c.atk+fl,def:c.def,exp:c.exp,gold:c.gold});
+    const hp=c.hp+fl;
+    enemies.push({x:pos.x,y:pos.y,stype:c.stype,name:c.name,hp,maxHp:hp,atk:c.atk+Math.ceil(fl/2),def:c.def,exp:c.exp,gold:c.gold});
     log('👿 '+c.name+'召喚！（残'+demonPtLeft+'pt）','p');
   }else{
     traps.push({x:pos.x,y:pos.y,trapType:c.trapType,triggered:false});
@@ -1423,12 +1423,14 @@ function demonAI(){
     const tiles=getPlaceableTiles();
     if(tiles.length>0){
       tiles.sort((a,b)=>dist(a,hero)-dist(b,hero));
-      const top=tiles.slice(0,Math.max(1,Math.floor(tiles.length/2)));
-      const pos=top[rng(0,top.length-1)];
+      const lo=Math.floor(tiles.length*0.2);
+      const hi=Math.max(lo+1,Math.floor(tiles.length*0.7));
+      const range=tiles.slice(lo,hi);
+      const pos=range[rng(0,range.length-1)];
       demonPtLeft-=pick.cost;
       if(pick.stype){
-        const hp=pick.hp+fl*2;
-        enemies.push({x:pos.x,y:pos.y,stype:pick.stype,name:pick.name,hp,maxHp:hp,atk:pick.atk+fl,def:pick.def,exp:pick.exp,gold:pick.gold});
+        const hp=pick.hp+fl;
+        enemies.push({x:pos.x,y:pos.y,stype:pick.stype,name:pick.name,hp,maxHp:hp,atk:pick.atk+Math.ceil(fl/2),def:pick.def,exp:pick.exp,gold:pick.gold});
         log('👿 [AI] '+pick.name+'召喚！（残'+demonPtLeft+'pt）','p');
       }else{
         traps.push({x:pos.x,y:pos.y,trapType:pick.trapType,triggered:false});

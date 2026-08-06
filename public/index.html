@@ -562,7 +562,8 @@ const CV=document.getElementById('c'),ctx=CV.getContext('2d');
 const CW=420,CH=300,TS=20,COLS=21,ROWS=15;
 const MAX_FLOOR=5;
 
-function demonPtForFloor(f){return Math.min(4+(f-1)*2,20);}
+function demonPtForFloor(f){return Math.min(6+(f-1)*2,20);}
+const DEMON_ACTIONS_PER_TURN=2;
 
 // フロアごとの出現モンスター（魔王が召喚できる種類も同じテーブル）
 const FLOOR_ENEMY_TABLE={
@@ -631,7 +632,7 @@ const PAL={
   fog:'#08080f',fogV:'rgba(0,0,0,0.65)'
 };
 
-let gmap,hero,enemies,items,traps,fl,done,staX,staY,turn,demonPtLeft,selectedCard,activeTab,turnCount;
+let gmap,hero,enemies,items,traps,fl,done,staX,staY,turn,demonPtLeft,demonActionsLeft,selectedCard,activeTab,turnCount;
 let demonSkills,deadEnemies; // 魔王スキル状態、倒された敵リスト
 
 function rng(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
@@ -658,7 +659,7 @@ function startGame(){
 
 function initGame(){
   fl=1;done=false;turn='hero';turnCount=0;
-  demonPtLeft=demonPtForFloor(1);selectedCard=-1;activeTab='mob';
+  demonPtLeft=demonPtForFloor(1);demonActionsLeft=DEMON_ACTIONS_PER_TURN;selectedCard=-1;activeTab='mob';
   demonSkills=DEMON_SKILLS.map(s=>({...s}));
   deadEnemies=[];
   hero={hp:30,maxHp:30,atk:5,def:2,lv:1,exp:0,gold:0,barrier:0,
@@ -810,12 +811,12 @@ function bfsNextStep(ex,ey,tx,ty,m,others){
 // ================================================================
 // 状態同期
 // ================================================================
-function getState(){return{gmap,hero,enemies,items,traps,fl,done,staX,staY,turn,demonPtLeft,turnCount,demonSkills,deadEnemies};}
+function getState(){return{gmap,hero,enemies,items,traps,fl,done,staX,staY,turn,demonPtLeft,demonActionsLeft,turnCount,demonSkills,deadEnemies};}
 function syncState(){if(!vsAI)sendWS({type:'state_sync',state:getState()});}
 function applyStateSync(state){
   gmap=state.gmap;hero=state.hero;enemies=state.enemies;items=state.items;
   traps=state.traps;fl=state.fl;done=state.done;staX=state.staX;staY=state.staY;
-  turn=state.turn;demonPtLeft=state.demonPtLeft;turnCount=state.turnCount||0;
+  turn=state.turn;demonPtLeft=state.demonPtLeft;demonActionsLeft=state.demonActionsLeft??DEMON_ACTIONS_PER_TURN;turnCount=state.turnCount||0;
   demonSkills=state.demonSkills||DEMON_SKILLS.map(s=>({...s}));
   deadEnemies=state.deadEnemies||[];
   selectedCard=-1;
@@ -1047,14 +1048,15 @@ function switchTab(tab){
 }
 
 function renderDemonPanel(){
-  document.getElementById('ptLabel2').textContent='残'+demonPtLeft+'pt';
+  document.getElementById('ptLabel2').textContent='残'+demonPtLeft+'pt ／ 配置'+demonActionsLeft+'/'+DEMON_ACTIONS_PER_TURN;
   const grid=document.getElementById('cardGrid');grid.innerHTML='';
   const cards=currentTab==='mob'?MON_CARDS:currentTab==='special'?SPECIAL_MON_CARDS:TRAP_CARDS;
   // フロアで使用可能なカードに絞る（通常モンスターはテーブルで制限）
   const allowed=FLOOR_ENEMY_TABLE[Math.min(fl,5)];
+  const actionsGone=demonActionsLeft<=0;
   cards.forEach((c,i)=>{
     if(currentTab==='mob'&&!allowed.includes(c.stype))return;
-    const ok=demonPtLeft>=c.cost;
+    const ok=demonPtLeft>=c.cost&&!actionsGone;
     const d=document.createElement('div');
     d.className='card'+(selectedCard===c.id?' sel':'')+(ok?'':' nopt');
     let pips='';for(let j=0;j<c.cost;j++)pips+='<div class="cpip"></div>';
@@ -1064,7 +1066,7 @@ function renderDemonPanel(){
   });
   const btn=document.getElementById('deployBtn');
   const info=document.getElementById('deployInfo');
-  if(demonPtLeft===0){info.textContent='全PT消費。Enterで終了';btn.textContent='✓ ターン終了';btn.disabled=false;}
+  if(actionsGone||demonPtLeft===0){info.textContent=actionsGone?'配置制限に達した。Enterで終了':'全PT消費。Enterで終了';btn.textContent='✓ ターン終了';btn.disabled=false;}
   else if(selectedCard){info.textContent='ランダム配置 → Enter';btn.textContent='🎲 召喚（Enter）';btn.disabled=false;}
   else{info.textContent='カードを選んでEnter';btn.textContent='🎲 召喚（Enter）';btn.disabled=true;}
 }
@@ -1094,7 +1096,7 @@ function heroMove(dx,dy){
     if(fl===MAX_FLOOR&&enemies.some(e=>e.isBoss)){log('⚠ ボスを倒すまで進めない！','r');return;}
     if(hero.sealedStairs>0){log('🔒 階段が封鎖されている！（残'+hero.sealedStairs+'T）','r');return;}
     log('▼ 階段！B'+(fl+1)+'Fへ','g');
-    fl++;demonPtLeft=demonPtForFloor(fl);loadFloor();endHeroTurn();return;
+    fl++;demonPtLeft=demonPtForFloor(fl);demonActionsLeft=DEMON_ACTIONS_PER_TURN;loadFloor();endHeroTurn();return;
   }
   endHeroTurn();
 }
@@ -1247,7 +1249,7 @@ function endHeroTurn(){
     log('⚔ 勇者のターン','b');
     if(vsAI&&myRole==='demon')setTimeout(()=>heroAI(),700);
   }else{
-    turn='demon';selectedCard=-1;render();syncState();
+    demonActionsLeft=DEMON_ACTIONS_PER_TURN;turn='demon';selectedCard=-1;render();syncState();
     log('👿 魔王のターン','p');
     if(vsAI&&myRole==='hero')setTimeout(()=>demonAI(),700);
   }
@@ -1322,7 +1324,7 @@ function getPlaceableTiles(){
 
 function deploySelected(){
   if(done||turn!=='demon'||myRole!=='demon')return;
-  if(demonPtLeft===0){endDemonTurn();return;}
+  if(demonActionsLeft<=0||demonPtLeft===0){endDemonTurn();return;}
   if(!selectedCard){log('カードを選んでください','o');return;}
   const allCards=[...MON_CARDS,...SPECIAL_MON_CARDS,...TRAP_CARDS];
   const c=allCards.find(x=>x.id===selectedCard);
@@ -1331,16 +1333,18 @@ function deploySelected(){
   if(!tiles.length){log('配置できる場所がない','o');return;}
   const pos=tiles[rng(0,tiles.length-1)];
   demonPtLeft-=c.cost;
+  demonActionsLeft--;
   if(c.stype){
     const hp=c.hp+fl;
     enemies.push({x:pos.x,y:pos.y,stype:c.stype,name:c.name,hp,maxHp:hp,atk:c.atk+Math.ceil(fl/2),def:c.def,exp:c.exp,gold:c.gold});
-    log('👿 '+c.name+'召喚！（残'+demonPtLeft+'pt）','p');
+    log('👿 '+c.name+'召喚！（残'+demonPtLeft+'pt・配置'+demonActionsLeft+'回）','p');
   }else{
     traps.push({x:pos.x,y:pos.y,trapType:c.trapType,triggered:false});
-    log('👿 '+c.name+'設置！（残'+demonPtLeft+'pt）','p');
+    log('👿 '+c.name+'設置！（残'+demonPtLeft+'pt・配置'+demonActionsLeft+'回）','p');
   }
   selectedCard=null;render();
   if(!vsAI)sendWS({type:'demon_action',state:getState()});
+  if(demonActionsLeft<=0){setTimeout(()=>endDemonTurn(),300);}
 }
 
 function useDemonSkill(sk){
@@ -1417,7 +1421,7 @@ function demonAI(){
   const allCards=[...MON_CARDS,...SPECIAL_MON_CARDS,...TRAP_CARDS];
   const floorAllowed=FLOOR_ENEMY_TABLE[Math.min(fl,5)];
   const affordable=allCards.filter(c=>c.cost<=demonPtLeft);
-  if(affordable.length>0&&demonPtLeft>0){
+  if(affordable.length>0&&demonPtLeft>0&&demonActionsLeft>0){
     const monCards=affordable.filter(c=>c.stype&&floorAllowed.includes(c.stype));
     const pick=(monCards.length>0&&rng(0,2)>0)?monCards[rng(0,monCards.length-1)]:affordable[rng(0,affordable.length-1)];
     const tiles=getPlaceableTiles();
@@ -1428,16 +1432,17 @@ function demonAI(){
       const range=tiles.slice(lo,hi);
       const pos=range[rng(0,range.length-1)];
       demonPtLeft-=pick.cost;
+      demonActionsLeft--;
       if(pick.stype){
         const hp=pick.hp+fl;
         enemies.push({x:pos.x,y:pos.y,stype:pick.stype,name:pick.name,hp,maxHp:hp,atk:pick.atk+Math.ceil(fl/2),def:pick.def,exp:pick.exp,gold:pick.gold});
-        log('👿 [AI] '+pick.name+'召喚！（残'+demonPtLeft+'pt）','p');
+        log('👿 [AI] '+pick.name+'召喚！（残'+demonPtLeft+'pt・配置'+demonActionsLeft+'回）','p');
       }else{
         traps.push({x:pos.x,y:pos.y,trapType:pick.trapType,triggered:false});
-        log('👿 [AI] '+pick.name+'設置！（残'+demonPtLeft+'pt）','p');
+        log('👿 [AI] '+pick.name+'設置！（残'+demonPtLeft+'pt・配置'+demonActionsLeft+'回）','p');
       }
       render();
-      if(demonPtLeft>0){setTimeout(()=>demonAI(),500);return;}
+      if(demonPtLeft>0&&demonActionsLeft>0){setTimeout(()=>demonAI(),500);return;}
     }
   }
   // スキル使用を試みてからターン終了
@@ -1550,7 +1555,7 @@ function heroMoveAI(dx,dy){
     if(fl===MAX_FLOOR&&enemies.some(e=>e.isBoss)){endHeroTurn();return;}
     if(hero.sealedStairs>0){log('🔒 封鎖中（AI待機）','r');endHeroTurn();return;}
     log('▼ 階段！B'+(fl+1)+'Fへ','g');
-    fl++;demonPtLeft=demonPtForFloor(fl);loadFloor();endHeroTurn();return;
+    fl++;demonPtLeft=demonPtForFloor(fl);demonActionsLeft=DEMON_ACTIONS_PER_TURN;loadFloor();endHeroTurn();return;
   }
   endHeroTurn();
 }
@@ -1620,7 +1625,7 @@ document.addEventListener('keydown',e=>{
       const c=cards[parseInt(e.key)-1];
       if(c&&demonPtLeft>=c.cost){selectedCard=c.id;renderDemonPanel();}
     }
-    else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();}
+    else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(demonActionsLeft<=0||demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();}
     else if(e.key==='Escape'){e.preventDefault();selectedCard=null;renderDemonPanel();}
     // タブ切り替え
     else if('mM'.includes(e.key)){e.preventDefault();switchTab(currentTab==='mob'?'special':currentTab==='special'?'trap':'mob');}
@@ -1655,7 +1660,7 @@ document.getElementById('skip-btn').onclick=()=>{
   if(turn==='hero'&&myRole==='hero'&&!done){log('勇者が待機','');endHeroTurn();}
   else if(turn==='demon'&&myRole==='demon'&&!done)endDemonTurn();
 };
-document.getElementById('deployBtn').onclick=()=>{if(demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();};
+document.getElementById('deployBtn').onclick=()=>{if(demonActionsLeft<=0||demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();};
 document.getElementById('rb').onclick=()=>location.reload();
 </script>
 </body>

@@ -562,7 +562,14 @@ const CV=document.getElementById('c'),ctx=CV.getContext('2d');
 const CW=420,CH=300,TS=20,COLS=21,ROWS=15;
 const MAX_FLOOR=5;
 
-function demonPtForFloor(f){return Math.min(6+(f-1)*2,20);}
+// ===== 魔王ポイント（案A：配置制限 ＋ 案B：毎ターン再生型）=====
+// 保有できるポイントの上限。貯めて高コストを出す戦略の天井になる
+function demonPtCapForFloor(f){return Math.min(8+(f-1)*2,20);}   // 8/10/12/14/16
+// フロア突入時に与える初期ポイント（少なめ：以降は毎ターン再生で補う）
+function demonPtStartForFloor(f){return Math.min(3+(f-1),8);}    // 3/4/5/6/7
+// 毎ターン回復するポイント量
+function demonRegenForFloor(f){return Math.ceil(f/2);}           // 1/1/2/2/3
+// 1ターンに配置できるカード枚数の上限
 const DEMON_ACTIONS_PER_TURN=2;
 
 // フロアごとの出現モンスター（魔王が召喚できる種類も同じテーブル）
@@ -659,10 +666,10 @@ function startGame(){
 
 function initGame(){
   fl=1;done=false;turn='hero';turnCount=0;
-  demonPtLeft=demonPtForFloor(1);demonActionsLeft=DEMON_ACTIONS_PER_TURN;selectedCard=-1;activeTab='mob';
+  demonPtLeft=demonPtStartForFloor(1);demonActionsLeft=DEMON_ACTIONS_PER_TURN;selectedCard=-1;activeTab='mob';
   demonSkills=DEMON_SKILLS.map(s=>({...s}));
   deadEnemies=[];
-  hero={hp:30,maxHp:30,atk:5,def:2,lv:1,exp:0,gold:0,barrier:0,
+  hero={hp:22,maxHp:22,atk:5,def:2,lv:1,exp:0,gold:0,barrier:0,
         atk_debuff:0,skip:0,hunger:100,maxHunger:100,
         darkness:0,sealedStairs:0,sense:0,
         skills:HERO_SKILLS.map(s=>({...s}))};
@@ -980,7 +987,7 @@ function updateUI(){
   document.getElementById('hungerVal').textContent=(hero.hunger||0)+'%';
   document.getElementById('hungerFill').style.width=hungerPct+'%';
   document.getElementById('hungerFill').style.background=hungerPct>50?'#6ab040':hungerPct>20?'#c0a000':'#c03000';
-  const total=demonPtForFloor(fl);
+  const total=demonPtCapForFloor(fl);
   document.getElementById('ptVal').textContent=demonPtLeft+'/'+total;
   document.getElementById('fl2').textContent=fl;
   document.getElementById('fl').textContent='B'+fl+'F'+(fl===MAX_FLOOR?' ⚠BOSS':'');
@@ -1096,7 +1103,7 @@ function heroMove(dx,dy){
     if(fl===MAX_FLOOR&&enemies.some(e=>e.isBoss)){log('⚠ ボスを倒すまで進めない！','r');return;}
     if(hero.sealedStairs>0){log('🔒 階段が封鎖されている！（残'+hero.sealedStairs+'T）','r');return;}
     log('▼ 階段！B'+(fl+1)+'Fへ','g');
-    fl++;demonPtLeft=demonPtForFloor(fl);demonActionsLeft=DEMON_ACTIONS_PER_TURN;loadFloor();endHeroTurn();return;
+    fl++;demonPtLeft=demonPtStartForFloor(fl);demonActionsLeft=DEMON_ACTIONS_PER_TURN;loadFloor();endHeroTurn();return;
   }
   endHeroTurn();
 }
@@ -1179,7 +1186,7 @@ function pickUp(ii){
 
 function lvUp(){
   if(hero.exp>=hero.lv*10){
-    hero.exp-=hero.lv*10;hero.lv++;hero.maxHp+=7;hero.hp=hero.maxHp;hero.atk++;
+    hero.exp-=hero.lv*10;hero.lv++;hero.maxHp+=5;hero.hp=hero.maxHp;hero.atk++;
     log('★ LV'+hero.lv+'! HP全回復','y');
   }
 }
@@ -1242,6 +1249,15 @@ function endHeroTurn(){
   // 魔王スキルのCDを減らす
   if(demonSkills)demonSkills.forEach(sk=>{if(sk.cd>0)sk.cd--;});
   enemyAI();if(done)return;
+  // 案B：毎ターン魔王ポイントを少しずつ再生（保有上限まで）
+  {
+    const cap=demonPtCapForFloor(fl);
+    if(demonPtLeft<cap){
+      const gain=Math.min(demonRegenForFloor(fl),cap-demonPtLeft);
+      demonPtLeft+=gain;
+      if(myRole==='demon'&&gain>0)log('⚡ 魔王POWER +'+gain+'（'+demonPtLeft+'/'+cap+'）','p');
+    }
+  }
   if(demonPtLeft===0){
     // PT0 は自動スキップ。スキルは勇者ターン中でも割り込み発動できる
     turn='hero';render();syncState();
@@ -1555,7 +1571,7 @@ function heroMoveAI(dx,dy){
     if(fl===MAX_FLOOR&&enemies.some(e=>e.isBoss)){endHeroTurn();return;}
     if(hero.sealedStairs>0){log('🔒 封鎖中（AI待機）','r');endHeroTurn();return;}
     log('▼ 階段！B'+(fl+1)+'Fへ','g');
-    fl++;demonPtLeft=demonPtForFloor(fl);demonActionsLeft=DEMON_ACTIONS_PER_TURN;loadFloor();endHeroTurn();return;
+    fl++;demonPtLeft=demonPtStartForFloor(fl);demonActionsLeft=DEMON_ACTIONS_PER_TURN;loadFloor();endHeroTurn();return;
   }
   endHeroTurn();
 }

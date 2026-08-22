@@ -82,9 +82,12 @@ dungeon-vs/
 ```js
 const COLS = 21, ROWS = 15, TS = 20; // マップサイズ・タイルサイズ(px)
 const MAX_FLOOR = 5;                  // 勇者の勝利条件フロア
-function demonPtForFloor(f) {         // 魔王ポイント：B1F=6pt、+2/F、上限20
-  return Math.min(6 + (f-1)*2, 20);
-}
+
+// 魔王ポイント（案A：配置制限 ＋ 案B：毎ターン再生型）
+function demonPtCapForFloor(f)  { return Math.min(8 + (f-1)*2, 20); } // 保有上限 8/10/12/14/16
+function demonPtStartForFloor(f){ return Math.min(3 + (f-1), 8);    } // 突入時   3/4/5/6/7
+function demonRegenForFloor(f)  { return Math.ceil(f/2);            } // 毎ターン 1/1/2/2/3
+const DEMON_ACTIONS_PER_TURN = 2;     // 1ターンに配置できるカード枚数
 ```
 
 ### フロアごとの出現モンスター
@@ -193,10 +196,17 @@ demonPtLeft === 0 ? 自動スキップ : 魔王ターンへ
 endDemonTurn() → 勇者ターンへ
 ```
 
-### 魔王ポイントの回復タイミング
-- **毎ターン回復しない**（前バージョンから変更）
-- **階段を下りたとき**だけ次フロア分のポイントにリセット
-- PT0のとき：自動スキップ、スキルのみ割り込み発動可能
+### 魔王ポイントの回復タイミング（案B：再生型）
+- **フロア突入時**に `demonPtStartForFloor(f)` を付与（少なめ）
+- **毎ターン** `demonRegenForFloor(f)` ずつ再生（`demonPtCapForFloor(f)` が保有上限）
+- 上限まで貯めて高コストカードを出すか、小刻みに出すかの判断が生まれる
+- PT0のとき：自動スキップ（再生型のためほぼ発生しない）
+
+### 魔王の配置制限（案A）
+- 1ターンに配置できるカードは **`DEMON_ACTIONS_PER_TURN`（=2）枚まで**
+- 2枚配置すると自動でターン終了。**余ったポイントは次ターンへ持ち越し**
+- これにより「一気に大量召喚」で勇者が詰む展開を防ぐ
+- 状態変数は `demonActionsLeft`（魔王ターン開始時・階段降下時にリセット）
 
 ### 勝利条件
 - **勇者の勝利**：B5Fで「魔王の使徒」（ボス）を倒す

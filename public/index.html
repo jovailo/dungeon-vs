@@ -100,6 +100,8 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
 #deployInfo{font-size:10px;color:#555;text-align:center;line-height:1.5}
 #deployBtn{width:100%;background:#1e0a30;border:1px solid #7030b0;border-radius:4px;padding:5px;font-size:11px;color:#d080f0;cursor:pointer;font-family:'Courier New',monospace;letter-spacing:1px;text-align:center}
 #deployBtn:hover{background:#2a1040}#deployBtn:disabled{opacity:.3;cursor:default}
+#waitBtn{width:100%;margin-top:4px;background:#141419;border:1px solid #3a3a44;border-radius:4px;padding:5px;font-size:11px;color:#8a8a95;cursor:pointer;font-family:'Courier New',monospace;letter-spacing:1px;text-align:center}
+#waitBtn:hover{background:#1e1e26;color:#b0b0bb}
 /* 魔王スキル */
 #demonSkillRow{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px}
 #waitTurn{background:#0a0a18;border:1px solid #2a2a3a;border-radius:6px;padding:10px;font-size:11px;color:#555;text-align:center;display:none;line-height:2}
@@ -279,6 +281,7 @@ canvas{border-radius:6px;display:block;image-rendering:pixelated;flex-shrink:0}
         <div id="cardGrid"></div>
         <div id="deployInfo">カードを選んでEnter</div>
         <button id="deployBtn" disabled>🎲 召喚（Enter）</button>
+        <button id="waitBtn">⏭ 待機（Space）</button>
       </div>
       <div id="waitTurn">相手のターンです...<br><span style="font-size:9px;color:#333">相手が行動すると自動で切り替わります</span></div>
       <div id="log"></div>
@@ -565,10 +568,12 @@ const MAX_FLOOR=5;
 // ===== 魔王ポイント（案A：配置制限 ＋ 案B：毎ターン再生型）=====
 // 保有できるポイントの上限。貯めて高コストを出す戦略の天井になる
 function demonPtCapForFloor(f){return Math.min(8+(f-1)*2,20);}   // 8/10/12/14/16
-// フロア突入時に与える初期ポイント（少なめ：以降は毎ターン再生で補う）
-function demonPtStartForFloor(f){return Math.min(3+(f-1),8);}    // 3/4/5/6/7
-// 毎ターン回復するポイント量
-function demonRegenForFloor(f){return Math.ceil(f/2);}           // 1/1/2/2/3
+// フロア突入時に与える初期ポイント（これがそのフロアの主な予算）
+function demonPtStartForFloor(f){return Math.min(5+(f-1)*2,16);} // 5/7/9/11/13
+// ポイント再生：DEMON_REGEN_INTERVAL ターンごとに DEMON_REGEN_AMOUNT 回復
+// 無限配置を防ぐため、あくまで「細く長く」の補充に留める
+const DEMON_REGEN_INTERVAL=5;
+const DEMON_REGEN_AMOUNT=1;
 // 1ターンに配置できるカード枚数の上限
 const DEMON_ACTIONS_PER_TURN=2;
 
@@ -1075,7 +1080,7 @@ function renderDemonPanel(){
   const info=document.getElementById('deployInfo');
   if(actionsGone||demonPtLeft===0){info.textContent=actionsGone?'配置制限に達した。Enterで終了':'全PT消費。Enterで終了';btn.textContent='✓ ターン終了';btn.disabled=false;}
   else if(selectedCard){info.textContent='ランダム配置 → Enter';btn.textContent='🎲 召喚（Enter）';btn.disabled=false;}
-  else{info.textContent='カードを選んでEnter';btn.textContent='🎲 召喚（Enter）';btn.disabled=true;}
+  else{info.textContent='カードを選んでEnter／Spaceで待機';btn.textContent='🎲 召喚（Enter）';btn.disabled=true;}
 }
 
 function log(t,c){
@@ -1249,13 +1254,13 @@ function endHeroTurn(){
   // 魔王スキルのCDを減らす
   if(demonSkills)demonSkills.forEach(sk=>{if(sk.cd>0)sk.cd--;});
   enemyAI();if(done)return;
-  // 案B：毎ターン魔王ポイントを少しずつ再生（保有上限まで）
-  {
+  // 案B：一定ターンごとに魔王ポイントを少しだけ再生（保有上限まで）
+  if(turnCount%DEMON_REGEN_INTERVAL===0){
     const cap=demonPtCapForFloor(fl);
     if(demonPtLeft<cap){
-      const gain=Math.min(demonRegenForFloor(fl),cap-demonPtLeft);
+      const gain=Math.min(DEMON_REGEN_AMOUNT,cap-demonPtLeft);
       demonPtLeft+=gain;
-      if(myRole==='demon'&&gain>0)log('⚡ 魔王POWER +'+gain+'（'+demonPtLeft+'/'+cap+'）','p');
+      if(myRole==='demon')log('⚡ 魔王POWER +'+gain+'（'+demonPtLeft+'/'+cap+'）','p');
     }
   }
   if(demonPtLeft===0){
@@ -1641,7 +1646,9 @@ document.addEventListener('keydown',e=>{
       const c=cards[parseInt(e.key)-1];
       if(c&&demonPtLeft>=c.cost){selectedCard=c.id;renderDemonPanel();}
     }
-    else if(e.key==='Enter'||e.key===' '){e.preventDefault();if(demonActionsLeft<=0||demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();}
+    else if(e.key==='Enter'){e.preventDefault();if(demonActionsLeft<=0||demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();}
+    // スペース：カード選択の有無に関わらず待機してターンを渡す（勇者側と同じ操作感）
+    else if(e.key===' '){e.preventDefault();log('👿 魔王が待機','p');endDemonTurn();}
     else if(e.key==='Escape'){e.preventDefault();selectedCard=null;renderDemonPanel();}
     // タブ切り替え
     else if('mM'.includes(e.key)){e.preventDefault();switchTab(currentTab==='mob'?'special':currentTab==='special'?'trap':'mob');}
@@ -1677,6 +1684,7 @@ document.getElementById('skip-btn').onclick=()=>{
   else if(turn==='demon'&&myRole==='demon'&&!done)endDemonTurn();
 };
 document.getElementById('deployBtn').onclick=()=>{if(demonActionsLeft<=0||demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();};
+document.getElementById('waitBtn').onclick=()=>{if(!done&&turn==='demon'&&myRole==='demon'){log('👿 魔王が待機','p');endDemonTurn();}};
 document.getElementById('rb').onclick=()=>location.reload();
 </script>
 </body>

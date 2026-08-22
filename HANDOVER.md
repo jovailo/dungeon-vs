@@ -83,10 +83,11 @@ dungeon-vs/
 const COLS = 21, ROWS = 15, TS = 20; // マップサイズ・タイルサイズ(px)
 const MAX_FLOOR = 5;                  // 勇者の勝利条件フロア
 
-// 魔王ポイント（案A：配置制限 ＋ 案B：毎ターン再生型）
+// 魔王ポイント（案A：配置制限 ＋ 案B：再生型）
 function demonPtCapForFloor(f)  { return Math.min(8 + (f-1)*2, 20); } // 保有上限 8/10/12/14/16
-function demonPtStartForFloor(f){ return Math.min(3 + (f-1), 8);    } // 突入時   3/4/5/6/7
-function demonRegenForFloor(f)  { return Math.ceil(f/2);            } // 毎ターン 1/1/2/2/3
+function demonPtStartForFloor(f){ return Math.min(5 + (f-1)*2, 16); } // 突入時   5/7/9/11/13
+const DEMON_REGEN_INTERVAL = 5;       // 5ターンごとに
+const DEMON_REGEN_AMOUNT   = 1;       // 1pt回復（無限配置を防ぐため細く長く）
 const DEMON_ACTIONS_PER_TURN = 2;     // 1ターンに配置できるカード枚数
 ```
 
@@ -123,6 +124,17 @@ const FLOOR_ENEMY_TABLE = {
 | seal | 封鎖 | 階段を2T封印 | 13 |
 | plunder | 略奪 | 勇者のGOLDを1/3奪う | 10 |
 | magnet | 引き寄せ | 遠くの敵を勇者付近に集める | 12 |
+
+### 魔王の操作キー
+
+| キー | 動作 |
+|---|---|
+| 1〜7 | カード選択（現在のタブに応じる） |
+| M | タブ切替（モンスター→特殊→罠） |
+| Enter | 選択中のカードを召喚／設置 |
+| **Space** | **待機（カード選択の有無に関わらずターンを渡す）** |
+| Escape | カード選択の解除 |
+| Z/X/C/V/A/S/D | 魔王スキル1〜7 |
 
 ### 魔王カード（数字キー1〜7 + Mキーでタブ切替）
 
@@ -197,10 +209,11 @@ endDemonTurn() → 勇者ターンへ
 ```
 
 ### 魔王ポイントの回復タイミング（案B：再生型）
-- **フロア突入時**に `demonPtStartForFloor(f)` を付与（少なめ）
-- **毎ターン** `demonRegenForFloor(f)` ずつ再生（`demonPtCapForFloor(f)` が保有上限）
+- **フロア突入時**に `demonPtStartForFloor(f)` を付与（そのフロアの主な予算）
+- **5ターンごとに +1pt** 再生（`demonPtCapForFloor(f)` が保有上限）
+  - 毎ターン回復にすると敵を無限に配置できてしまうため、あえて細く長い補充にしている
 - 上限まで貯めて高コストカードを出すか、小刻みに出すかの判断が生まれる
-- PT0のとき：自動スキップ（再生型のためほぼ発生しない）
+- PT0のとき：自動スキップ、スキルのみ割り込み発動可能
 
 ### 魔王の配置制限（案A）
 - 1ターンに配置できるカードは **`DEMON_ACTIONS_PER_TURN`（=2）枚まで**

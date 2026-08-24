@@ -577,6 +577,18 @@ const DEMON_REGEN_AMOUNT=1;
 // 1ターンに配置できるカード枚数の上限
 const DEMON_ACTIONS_PER_TURN=2;
 
+// そのフロアで買える最安カードのコスト（フロア制限のあるモンスターを考慮）
+function minCardCost(f){
+  const allowed=FLOOR_ENEMY_TABLE[Math.min(f,5)];
+  const usable=[...MON_CARDS.filter(c=>allowed.includes(c.stype)),...SPECIAL_MON_CARDS,...TRAP_CARDS];
+  return Math.min(...usable.map(c=>c.cost));
+}
+// 魔王が「配置」で行動できるか。買えるカードが無い／置ける場所が無いなら false。
+// false のときは魔王ターンを自動スキップし、勇者を待たせない
+function demonCanDeploy(){
+  return demonPtLeft>=minCardCost(fl)&&getPlaceableTiles().length>0;
+}
+
 // フロアごとの出現モンスター（魔王が召喚できる種類も同じテーブル）
 const FLOOR_ENEMY_TABLE={
   1:['slime'],
@@ -617,6 +629,8 @@ const MON_CARDS=[
 
 // 罠カード（種類を拡張）
 const TRAP_CARDS=[
+  // 全フロアで買える最安カード。魔王が「何も置けない」空ターンを作らないための枠
+  {id:'spiketrap',name:'棘の罠',  ico:'🌵', trapType:'spike',cost:1,desc:'踏んだらHP-4'},
   {id:'dmgtrap', name:'ダメージ罠',ico:'⚠', trapType:'dmg',  cost:2,desc:'踏んだらHP-10'},
   {id:'warptrap',name:'ワープ罠', ico:'🌀', trapType:'warp', cost:2,desc:'踏んだら転送'},
   {id:'weaktrap',name:'弱体罠',   ico:'🩸', trapType:'weak', cost:3,desc:'ATK-2・3ターン'},
@@ -919,6 +933,12 @@ function drawSprite(type,x,y){
   }else if(type==='trap_warp_tri'){ctx.fillStyle='#10082e';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#6030c0';ctx.fillRect(px+5,py+5,10,10);ctx.fillStyle='#9060f0';ctx.fillRect(px+7,py+7,6,6);ctx.fillStyle='#c090ff';ctx.fillRect(px+9,py+9,2,2);
   }else if(type==='trap_weak_tri'){ctx.fillStyle='#1e0018';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#c000a0';ctx.fillRect(px+6,py+4,8,2);ctx.fillRect(px+4,py+6,2,8);ctx.fillRect(px+14,py+6,2,8);ctx.fillRect(px+6,py+14,8,2);ctx.fillStyle='#ff40e0';ctx.fillRect(px+8,py+8,4,4);
   }else if(type==='trap_slow_tri'){ctx.fillStyle='#181808';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#808000';ctx.fillRect(px+6,py+4,8,2);ctx.fillRect(px+4,py+6,2,8);ctx.fillRect(px+14,py+6,2,8);ctx.fillRect(px+6,py+14,8,2);ctx.fillStyle='#e0e000';ctx.fillRect(px+8,py+8,4,4);
+  }else if(type==='trap_spike'){ctx.fillStyle='#0e1608';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#2a4018';ctx.fillRect(px+7,py+7,6,6);ctx.fillRect(px+8,py+5,4,1);ctx.fillRect(px+8,py+14,4,1);ctx.fillRect(px+5,py+8,1,4);ctx.fillRect(px+14,py+8,1,4);
+  }else if(type==='trap_spike_tri'){ctx.fillStyle='#14200c';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#5aa030';ctx.fillRect(px+9,py+3,2,6);ctx.fillRect(px+4,py+7,2,6);ctx.fillRect(px+14,py+7,2,6);ctx.fillRect(px+9,py+11,2,6);ctx.fillStyle='#9ae060';ctx.fillRect(px+9,py+9,2,2);
+  }else if(type==='trap_bomb'){ctx.fillStyle='#180c08';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#4a2810';ctx.fillRect(px+7,py+7,6,6);ctx.fillRect(px+8,py+5,4,1);ctx.fillRect(px+8,py+14,4,1);ctx.fillRect(px+5,py+8,1,4);ctx.fillRect(px+14,py+8,1,4);
+  }else if(type==='trap_bomb_tri'){ctx.fillStyle='#2a1408';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#e06010';ctx.fillRect(px+5,py+5,10,10);ctx.fillStyle='#ffa030';ctx.fillRect(px+7,py+7,6,6);ctx.fillStyle='#fff0a0';ctx.fillRect(px+9,py+9,2,2);
+  }else if(type==='trap_poison'){ctx.fillStyle='#0c1810';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#1e4a30';ctx.fillRect(px+7,py+7,6,6);ctx.fillRect(px+8,py+5,4,1);ctx.fillRect(px+8,py+14,4,1);ctx.fillRect(px+5,py+8,1,4);ctx.fillRect(px+14,py+8,1,4);
+  }else if(type==='trap_poison_tri'){ctx.fillStyle='#10281a';ctx.fillRect(px,py,TS,TS);ctx.fillStyle='#30a060';ctx.fillRect(px+4,py+6,4,4);ctx.fillRect(px+12,py+6,4,4);ctx.fillRect(px+8,py+11,4,4);ctx.fillStyle='#70e0a0';ctx.fillRect(px+5,py+7,2,2);ctx.fillRect(px+13,py+7,2,2);ctx.fillRect(px+9,py+12,2,2);
   }else if(type==='stairs'){
     ctx.fillStyle=PAL.stairsD;for(let i=0;i<4;i++)ctx.fillRect(px+2+i*4,py+14-i*3,16-i*4,3);ctx.fillStyle=PAL.stairs;for(let i=0;i<4;i++)ctx.fillRect(px+2+i*4,py+12-i*3,16-i*4,2);
   }else if(type==='wall'){
@@ -1078,7 +1098,7 @@ function renderDemonPanel(){
   });
   const btn=document.getElementById('deployBtn');
   const info=document.getElementById('deployInfo');
-  if(actionsGone||demonPtLeft===0){info.textContent=actionsGone?'配置制限に達した。Enterで終了':'全PT消費。Enterで終了';btn.textContent='✓ ターン終了';btn.disabled=false;}
+  if(actionsGone||demonPtLeft<minCardCost(fl)){info.textContent=actionsGone?'配置制限に達した。Enterで終了':'PT不足。Enterで終了';btn.textContent='✓ ターン終了';btn.disabled=false;}
   else if(selectedCard){info.textContent='ランダム配置 → Enter';btn.textContent='🎲 召喚（Enter）';btn.disabled=false;}
   else{info.textContent='カードを選んでEnter／Spaceで待機';btn.textContent='🎲 召喚（Enter）';btn.disabled=true;}
 }
@@ -1171,6 +1191,10 @@ function checkTrap(x,y){
     hero._weakTimer=(hero._weakTimer||0)+3;
   }else if(tr.trapType==='slow'){
     hero.skip=1;log('🕸 足止め罠！次ターンスキップ','o');
+  }else if(tr.trapType==='spike'){
+    if(hero.barrier>0){log('🌵 棘の罠！バリアで無効','p');return;}
+    hero.hp-=4;log('🌵 棘の罠！HP-4','r');
+    if(hero.hp<=0)endGame('魔王の勝利！','勇者が罠で力尽きた…','#d080f0');
   }
 }
 
@@ -1263,10 +1287,11 @@ function endHeroTurn(){
       if(myRole==='demon')log('⚡ 魔王POWER +'+gain+'（'+demonPtLeft+'/'+cap+'）','p');
     }
   }
-  if(demonPtLeft===0){
-    // PT0 は自動スキップ。スキルは勇者ターン中でも割り込み発動できる
+  if(!demonCanDeploy()){
+    // 配置できるカードが無いターンは自動スキップし、勇者を待たせない
+    // （スキルは勇者ターン中でも割り込み発動できる）
     turn='hero';render();syncState();
-    log('（魔王PT0のため自動スキップ）','o');
+    log('（魔王は配置できないため自動スキップ）','o');
     log('⚔ 勇者のターン','b');
     if(vsAI&&myRole==='demon')setTimeout(()=>heroAI(),700);
   }else{
@@ -1345,7 +1370,7 @@ function getPlaceableTiles(){
 
 function deploySelected(){
   if(done||turn!=='demon'||myRole!=='demon')return;
-  if(demonActionsLeft<=0||demonPtLeft===0){endDemonTurn();return;}
+  if(demonActionsLeft<=0||demonPtLeft<minCardCost(fl)){endDemonTurn();return;}
   if(!selectedCard){log('カードを選んでください','o');return;}
   const allCards=[...MON_CARDS,...SPECIAL_MON_CARDS,...TRAP_CARDS];
   const c=allCards.find(x=>x.id===selectedCard);
@@ -1371,7 +1396,7 @@ function deploySelected(){
 function useDemonSkill(sk){
   // ポイント0時は勇者ターン中でもスキル割り込み可能
   if(done||myRole!=='demon'||sk.cd>0)return;
-  if(turn!=='demon'&&demonPtLeft>0)return; // PT残量あり時は自分のターンのみ
+  if(turn!=='demon'&&demonCanDeploy())return; // 配置できる時は自分のターンのみ
   if(sk.type==='quake'){
     enemies.forEach(e=>{e.atk+=2;e._atkBuff=(e._atkBuff||0)+2;}); // 2Tに短縮
     log('🌋 地震！全モンスターATK+2（2T）','p');
@@ -1417,10 +1442,10 @@ function useDemonSkill(sk){
   }
   sk.cd=sk.baseCd;render();
   if(!vsAI){
-    // PT0の割り込み発動は勇者ターンのまま継続（ターン消費なし）
-    const msg = demonPtLeft===0
-      ? {type:'state_sync', state:getState()}      // PT0：状態同期のみ
-      : {type:'demon_action', state:getState()};   // PT残：ターン交代
+    // 自動スキップ中の割り込み発動は勇者ターンのまま継続（ターン消費なし）
+    const msg = turn==='hero'
+      ? {type:'state_sync', state:getState()}      // 割り込み：状態同期のみ
+      : {type:'demon_action', state:getState()};   // 自ターン：通常の同期
     sendWS(msg);
   }
 }
@@ -1635,7 +1660,7 @@ document.addEventListener('keydown',e=>{
     else if(e.key===' '){e.preventDefault();log('勇者が待機','');endHeroTurn();}
   }else if(turn==='demon'&&myRole==='demon'){
     // 数字キー：現在のタブに応じてカード選択
-    if(e.key>='1'&&e.key<='7'){
+    if(e.key>='1'&&e.key<='9'){
       e.preventDefault();
       const allowed=FLOOR_ENEMY_TABLE[Math.min(fl,5)];
       const cards=currentTab==='mob'
@@ -1646,7 +1671,7 @@ document.addEventListener('keydown',e=>{
       const c=cards[parseInt(e.key)-1];
       if(c&&demonPtLeft>=c.cost){selectedCard=c.id;renderDemonPanel();}
     }
-    else if(e.key==='Enter'){e.preventDefault();if(demonActionsLeft<=0||demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();}
+    else if(e.key==='Enter'){e.preventDefault();if(demonActionsLeft<=0||demonPtLeft<minCardCost(fl)||!selectedCard)endDemonTurn();else deploySelected();}
     // スペース：カード選択の有無に関わらず待機してターンを渡す（勇者側と同じ操作感）
     else if(e.key===' '){e.preventDefault();log('👿 魔王が待機','p');endDemonTurn();}
     else if(e.key==='Escape'){e.preventDefault();selectedCard=null;renderDemonPanel();}
@@ -1662,8 +1687,8 @@ document.addEventListener('keydown',e=>{
     else if('dD'.includes(e.key)){e.preventDefault();const s=demonSkills?.[6];if(s?.cd===0)useDemonSkill(s);}
     else if('fF'.includes(e.key)){e.preventDefault();const s=demonSkills?.[7];if(s?.cd===0)useDemonSkill(s);}
   }
-  // PT0の魔王は勇者ターン中でもスキルキー受付
-  if(myRole==='demon'&&turn==='hero'&&demonPtLeft===0&&demonSkills){
+  // 自動スキップされた魔王は勇者ターン中でもスキルキー受付
+  if(myRole==='demon'&&turn==='hero'&&!demonCanDeploy()&&demonSkills){
     if('zZ'.includes(e.key)){e.preventDefault();const s=demonSkills[0];if(s?.cd===0)useDemonSkill(s);}
     else if('xX'.includes(e.key)){e.preventDefault();const s=demonSkills[1];if(s?.cd===0)useDemonSkill(s);}
     else if('cC'.includes(e.key)){e.preventDefault();const s=demonSkills[2];if(s?.cd===0)useDemonSkill(s);}
@@ -1683,7 +1708,7 @@ document.getElementById('skip-btn').onclick=()=>{
   if(turn==='hero'&&myRole==='hero'&&!done){log('勇者が待機','');endHeroTurn();}
   else if(turn==='demon'&&myRole==='demon'&&!done)endDemonTurn();
 };
-document.getElementById('deployBtn').onclick=()=>{if(demonActionsLeft<=0||demonPtLeft===0||!selectedCard)endDemonTurn();else deploySelected();};
+document.getElementById('deployBtn').onclick=()=>{if(demonActionsLeft<=0||demonPtLeft<minCardCost(fl)||!selectedCard)endDemonTurn();else deploySelected();};
 document.getElementById('waitBtn').onclick=()=>{if(!done&&turn==='demon'&&myRole==='demon'){log('👿 魔王が待機','p');endDemonTurn();}};
 document.getElementById('rb').onclick=()=>location.reload();
 </script>
